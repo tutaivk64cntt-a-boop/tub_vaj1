@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2020",                          
+    "module": "commonjs",                    
+    "lib": ["es2020", "DOM"],                     
+    "strict": true,                           
+    "esModuleInterop": true,                  
+    "skipLibCheck": true,                     
+    "forceConsistentCasingInFileNames": true
+  },
+  "exclude": [
+    "node_modules",
+    "output",
+    "uploads"
+  ]
+}

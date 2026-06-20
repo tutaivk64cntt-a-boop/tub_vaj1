@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamVibe - Distributed HLS Architecture</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+    <div class="mobile-header">
+        <div class="logo"><i class="fa-solid fa-play" style="color:#3b82f6;"></i> Stream<span>Vibe</span></div>
+        <button id="menuToggleBtn" onclick="openMobileSidebar()"><i class="fa-solid fa-bars"></i></button>
+    </div>
+    
+    <div id="sidebarOverlay" class="sidebar-overlay" onclick="closeMobileSidebar()"></div>
+
+    <div id="loginModal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="logo" style="justify-content: center; margin-bottom: 20px;">
+                <i class="fa-solid fa-play" style="color:#3b82f6;"></i> Stream<span>Vibe</span>
+            </div>
+            <h2 style="text-align: center; margin-bottom: 10px;">Cổng Quản Trị Hệ Thống</h2>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 14px; margin-bottom: 25px;">
+                Nhập tên và mật khẩu để Đăng nhập hoặc tạo mới.
+            </p>
+            <form onsubmit="return false;">
+                <input type="text" id="usernameInput" placeholder="Ví dụ: Lâm hoặc lam@email.com..." required autocomplete="off">
+                <input type="password" id="passwordInput" placeholder="Nhập mật khẩu của bạn..." required>
+                <div id="loginError" style="color: #ef4444; font-size: 13px; display: none; margin-bottom: 15px; text-align: center;"></div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" class="btn-primary" style="flex: 1; justify-content: center;" onclick="loginAccount()">
+                        <i class="fa-solid fa-right-to-bracket"></i> Đăng Nhập
+                    </button>
+                    <button type="button" class="btn-cancel" style="flex: 1;" onclick="registerAccount()">
+                        <i class="fa-solid fa-user-plus"></i> Đăng Ký
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="shareVideoModal" class="modal-overlay">
+        <div class="modal-box" style="max-width: 460px; padding: 30px;">
+            <h2 style="color: #fff; font-size: 22px; margin-bottom: 5px;">Chia sẻ Video</h2>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Chia sẻ luồng video này đến bạn bè và các mạng xã hội.</p>
+            
+            <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
+                <div onclick="shareToApp('facebook')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div style="width: 48px; height: 44px; background: #1877f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-facebook-f"></i></div>
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Facebook</span>
+                </div>
+                <div onclick="shareToApp('messenger')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div style="width: 48px; height: 44px; background: linear-gradient(135deg, #00c6ff, #0072ff, #f355a0); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-facebook-messenger"></i></div>
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Messenger</span>
+                </div>
+                <div onclick="shareToApp('zalo')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div style="width: 48px; height: 44px; background: #0068ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color:#fff; font-weight: 900; font-family: sans-serif;">ZALO</div>
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Zalo Web</span>
+                </div>
+                <div onclick="shareToApp('telegram')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div style="width: 48px; height: 44px; background: #229ed9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-telegram"></i></div>
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Telegram</span>
+                </div>
+                <div onclick="shareToApp('gmail')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div style="width: 48px; height: 44px; background: #ea4335; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-regular fa-envelope"></i></div>
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Gmail</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); padding: 8px 8px 8px 16px; border-radius: 10px; align-items: center; margin-bottom: 20px;">
+                <input type="text" id="shareLinkURLInput" readonly style="background:transparent; border:none; width:100%; color:#60a5fa; font-size:13px; font-weight:600; padding:0; margin-bottom:0; outline:none; text-overflow: ellipsis;">
+                <button class="btn-primary" style="padding: 10px 16px; font-size: 12px; white-space: nowrap; flex-shrink: 0;" onclick="copyShareLinkDirectly()"><i class="fa-regular fa-copy"></i> Sao chép</button>
+            </div>
+
+            <button class="btn-cancel" style="width: 100%; justify-content: center;" onclick="document.getElementById('shareVideoModal').style.display='none'">Đóng lại</button>
+        </div>
+    </div>
+
+    <div id="editVideoModal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="text-align: center; margin-bottom: 10px; color: #fff;">Đổi tên Video</h2>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Nhập tên mới cho video của bạn.</p>
+            <form onsubmit="submitEditVideo(event)">
+                <input type="hidden" id="editVideoId">
+                <input type="text" id="editVideoTitleInput" class="settings-input" placeholder="Ví dụ: Du lịch Sơn La..." required autocomplete="off">
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button type="button" class="btn-cancel" onclick="document.getElementById('editVideoModal').style.display='none'">Hủy bỏ</button>
+                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;"><i class="fa-solid fa-check"></i> Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="addUserModal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="text-align: center; margin-bottom: 10px; color: #fff;" id="addUserTitle">Thêm Tài Khoản</h2>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Tạo trực tiếp thành viên mới vào hệ thống dữ liệu.</p>
+            <form onsubmit="submitNewUser(event)">
+                <input type="hidden" id="newUserRole">
+                <div id="adminTypeContainer" style="display: none; margin-bottom: 15px;">
+                    <label style="color: var(--text-secondary); font-size: 13px; margin-bottom: 5px; display: block; font-weight: 600;">Chọn chức vụ / quyền hạn:</label>
+                    <select id="adminTypeSelect" class="settings-input" style="margin-bottom: 0; background: rgba(0,0,0,0.6); cursor: pointer;">
+                        <option value="admin">Quản trị viên (Chỉ xem Quản lý hệ thống)</option>
+                        <option value="statadmin">Quản lý Thống Kê (Chỉ xem mục Thống kê)</option>
+                    </select>
+                </div>
+                <input type="text" id="newUsernameInput" class="settings-input" placeholder="Nhập tên đăng nhập mới..." required autocomplete="off">
+                <input type="password" id="newUserPasswordInput" class="settings-input" placeholder="Nhập mật khẩu..." required>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
+                    <button type="button" class="btn-cancel" onclick="closeAddUserModal()">Hủy bỏ</button>
+                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;"><i class="fa-solid fa-check"></i> Xác nhận tạo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+   <div id="userProfileModal" class="modal-overlay">
+        <div class="modal-box" style="padding: 30px; max-width: 1000px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; position: relative;">
+            
+            <button class="modal-close-top-left" onclick="closeUserProfile()">
+                <i class="fa-solid fa-arrow-left"></i> Đóng
+            </button>
+
+            <div class="user-view-profile" style="margin-bottom: 25px;">
+                <img id="viewProfileAvatar" src="" class="user-view-avatar" alt="Avatar" onclick="openImageViewer(this.src)" title="Bấm để phóng to ảnh" onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'" style="width: 130px; height: 130px; cursor: zoom-in; border: 3px solid rgba(255,255,255,0.2);">
+                <div id="viewProfileName" class="user-view-name" style="font-size: 26px;">Tên tài khoản</div>
+                <div id="viewProfileRole" class="user-view-role" style="font-size: 13px; padding: 4px 16px; border-radius: 20px;">Thành viên hệ thống</div>
+                
+                <div style="display: flex; gap: 20px; align-items: center; margin-top: 15px;">
+                    <div style="text-align: center; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 20px;">
+                        <span id="profileFollowerCount" style="font-weight: bold; font-size: 18px; color: #fff;">0</span><br>
+                        <span style="font-size: 12px; color: var(--text-secondary);">Người theo dõi</span>
+                    </div>
+                    <button id="btnFollowUser" class="btn-primary" onclick="toggleFollow()"><i class="fa-solid fa-user-plus"></i> Theo dõi</button>
+                    <button id="btnMessageUser" class="btn-secondary" style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;" onclick="openPrivateChatFromProfile()"><i class="fa-solid fa-comment-dots"></i> Nhắn tin</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 10px;">
+                <h3 style="color: #3b82f6; font-size: 20px; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;"><i class="fa-solid fa-video"></i> Các video (<span id="profileVideoCount">0</span>)</h3>
+                <div id="profileVideoGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; max-height: 400px; overflow-y: auto; padding-right: 5px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="imageViewerModal" class="image-viewer-overlay" style="display: none;" onclick="closeImageViewer()">
+        <img id="fullSizeImage" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" class="image-viewer-img" alt="Ảnh phóng to">
+    </div>
+
+    <div id="universalAlertModal" class="modal-overlay">
+        <div class="modal-box" style="padding: 30px; text-align: center; max-width: 350px;">
+            <div class="confirm-icon" id="alertIcon" style="color: #10b981;"><i class="fa-solid fa-circle-check"></i></div>
+            <div class="confirm-title" id="alertTitle" style="margin-bottom: 15px;">Thành công!</div>
+            <div class="confirm-text" id="alertMessage" style="margin-bottom: 25px;">Đang xử lý...</div>
+            <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="closeAlert()">Đóng</button>
+        </div>
+    </div>
+    <div id="universalConfirmModal" class="modal-overlay">
+        <div class="modal-box" style="padding: 30px;">
+            <div class="confirm-icon" style="color: #ef4444;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="confirm-title" id="confirmTitle">Xác nhận</div>
+            <div class="confirm-text" id="confirmMessage">Bạn có chắc chắn không?</div>
+            <div class="confirm-actions">
+                <button class="btn-cancel" onclick="closeConfirm()">Hủy bỏ</button>
+                <button class="btn-danger" onclick="executeConfirmAction()">Đồng ý</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <button class="close-sidebar-btn" onclick="closeMobileSidebar()"><i class="fa-solid fa-xmark"></i></button>
+        
+        <div class="logo"><i class="fa-solid fa-play" style="color:#3b82f6;"></i> Stream<span>Vibe</span></div>
+        
+        <div class="sidebar-section-title">NỘI DUNG CHUNG</div>
+        <ul class="menu-list">
+            <li><a class="menu-item menu-item-transparent active" data-tab="dashboard"><i class="fa-regular fa-user"></i> Video của tôi</a></li>
+            <li><a class="menu-item menu-item-transparent" data-tab="publicVideos"><i class="fa-regular fa-compass"></i> Khám phá chung</a></li>
+            
+            <li>
+                <a class="menu-item menu-item-transparent" data-tab="notifications">
+                    <i class="fa-regular fa-bell"></i> Thông báo 
+                    <span id="notiBadge" class="badge-danger" style="margin-left: auto;">0</span>
+                </a>
+            </li>
+
+            <li id="statisticsMenuTab" style="display: none;">
+                <a class="menu-item menu-item-transparent" data-tab="statistics">
+                    <i class="fa-solid fa-chart-pie"></i> Thống kê hệ thống
+                </a>
+            </li>
+        </ul>
+
+        <div class="sidebar-section-title" id="technicalSectionTitle" style="display: none;">NODES <span style="font-weight:500; font-family:monospace;">TỔNG 4536</span></div>
+        <ul class="menu-list" id="technicalMenuList" style="display: none;">
+            <li><a class="menu-item menu-item-box" data-tab="hls"><i class="fa-solid fa-layer-group" style="color:#f8fafc;"></i> HLS <span class="badge badge-green">19</span></a></li>
+            <li><a class="menu-item menu-item-box" data-tab="nodes"><i class="fa-solid fa-cube" style="color:#f8fafc;"></i> Nodes <span class="badge badge-purple">3</span></a></li>
+            <li><a class="menu-item menu-item-box" data-tab="ffmpeg"><i class="fa-solid fa-sliders" style="color:#f8fafc;"></i> FFmpeg <span class="badge badge-green">20</span></a></li>
+        </ul>
+
+        <div class="sidebar-section-title">CÁ NHÂN</div>
+        <ul class="menu-list">
+            <li><a class="menu-item menu-item-transparent" data-tab="personalSpace"><i class="fa-solid fa-briefcase"></i> Không gian làm việc</a></li>
+            <li><a class="menu-item menu-item-transparent" data-tab="settings"><i class="fa-solid fa-gear"></i> Cài đặt tài khoản</a></li>
+            
+            <li>
+                <a class="menu-item menu-item-transparent" data-tab="privateMessages">
+                    <i class="fa-regular fa-message" style="color: #10b981;"></i> Tin nhắn riêng
+                    <span id="msgBadge" class="badge-danger" style="margin-left: auto;">0</span>
+                </a>
+            </li>
+
+            <li id="adminMenuTab" style="display: none;">
+                <a class="menu-item menu-item-transparent" data-tab="users" style="padding-top:8px; padding-bottom:8px;">
+                    <i class="fa-solid fa-users-gear" style="color:#94a3b8;"></i> 
+                    <div>Quản lý Hệ thống<br><span style="font-size: 10px; font-weight: 400; color: #64748b;">Only cho Admins</span></div>
+                </a>
+            </li>
+        </ul>
+        
+        <div class="user-profile" onclick="requestLogout()" title="Đăng xuất khỏi hệ thống">
+            <div class="user-avatar"><img id="displayAvatar" src="" alt="Avatar"></div>
+            <div class="user-info">
+                <div class="user-name" id="displayUsername">Đang tải...</div>
+                <div class="user-role" id="displayRole">Kỹ sư hệ thống</div>
+            </div>
+            <i class="fa-solid fa-arrow-right-from-bracket logout-icon"></i>
+        </div>
+    </div>
+
+    <div class="main-content">
+
+        <div id="statistics" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Phân Tích Dữ Liệu <i class="fa-solid fa-chart-line" style="color: #10b981; font-size:18px;"></i></h2>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 30px;">
+                <div class="stat-card glass-card" style="text-align: center; padding: 15px;">
+                    <i class="fa-solid fa-users" style="color: #3b82f6;"></i>
+                    <div class="stat-value" id="statUsers">0</div>
+                    <div class="stat-label">Tài Khoản</div>
+                </div>
+                <div class="stat-card glass-card" style="text-align: center; padding: 15px;">
+                    <i class="fa-solid fa-video" style="color: #10b981;"></i>
+                    <div class="stat-value" id="statVideos">0</div>
+                    <div class="stat-label">Luồng Video</div>
+                </div>
+                <div class="stat-card glass-card" style="text-align: center; padding: 15px;">
+                    <i class="fa-solid fa-comments" style="color: #f59e0b;"></i>
+                    <div class="stat-value" id="statChats">0</div>
+                    <div class="stat-label">Bình Luận</div>
+                </div>
+                <div class="stat-card glass-card" style="text-align: center; padding: 15px; border: 1px solid rgba(244, 63, 94, 0.3);">
+                    <i class="fa-solid fa-heart" style="color: #f43f5e; text-shadow: 0 0 10px rgba(244, 63, 94, 0.6);"></i>
+                    <div class="stat-value" id="statLikes" style="color: #f43f5e;">0</div>
+                    <div class="stat-label">Tổng Thả Tim</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 30px;">
+                <div class="glass-card">
+                    <h3 style="color: #fff; margin-bottom: 20px; font-size: 16px;"><i class="fa-solid fa-eye" style="color: #3b82f6;"></i> Top 5 Video Nhiều Người Xem Nhất</h3>
+                    <canvas id="viewsChart"></canvas>
+                </div>
+                <div class="glass-card">
+                    <h3 style="color: #fff; margin-bottom: 20px; font-size: 16px;"><i class="fa-solid fa-fire" style="color: #ef4444;"></i> Top 5 Video Bình Luận Sôi Nổi Nhất</h3>
+                    <canvas id="commentsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="section-header" style="margin-top: 40px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 30px;">
+                <h3 style="font-size: 18px; font-weight: 700; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Chi Tiết Bảng Xếp Hạng Video</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btnSortViews" class="btn-small" style="background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); padding: 8px 15px;" onclick="renderRankedGrid('views')">
+                        <i class="fa-solid fa-eye"></i> Top Lượt xem
+                    </button>
+                    <button id="btnSortLikes" class="btn-small" style="background: rgba(244, 63, 94, 0.15); color: #fda4af; border-color: rgba(244, 63, 94, 0.2); padding: 8px 15px;" onclick="renderRankedGrid('likes')">
+                        <i class="fa-solid fa-heart"></i> Top Yêu Thích
+                    </button>
+                    <button id="btnSortChats" class="btn-small" style="background: rgba(239, 68, 68, 0.15); color: #fca5a5; border-color: rgba(239, 68, 68, 0.2); padding: 8px 15px;" onclick="renderRankedGrid('comments')">
+                        <i class="fa-solid fa-fire"></i> Top Bình luận
+                    </button>
+                </div>
+            </div>
+            <div id="rankedVideoGrid" class="video-grid"></div>
+
+        </div>
+
+        <div id="notifications" class="tab-content">
+            <div class="section-header" style="align-items: center;">
+                <h2 class="section-title">Thông báo hệ thống <i class="fa-regular fa-bell" style="color: #3b82f6; font-size:18px;"></i></h2>
+                <button class="btn-small" onclick="clearNotifications()" style="padding: 8px 15px;"><i class="fa-solid fa-trash-can"></i> Đánh dấu đã đọc</button>
+            </div>
+            <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 14px;">Bấm vào thông báo để chuyển thẳng đến video hoặc hồ sơ.</p>
+            
+            <div id="notiContainer" class="noti-list"></div>
+        </div>
+
+        <div id="settings" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Cài Đặt Tài Khoản <i class="fa-solid fa-sliders" style="color: #3b82f6; font-size:18px;"></i></h2>
+            </div>
+            
+            <div id="settingsMainMenu">
+                <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 30px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">Quản lý thông tin đăng nhập, ảnh đại diện, bảo mật và khôi phục tài khoản của bạn tại đây.</p>
+                <div class="settings-menu-grid">
+                    
+                    <div class="setting-nav-card glass-card" onclick="openSettingPanel('panel-profile')">
+                        <div class="setting-nav-icon" style="color: #10b981;"><i class="fa-solid fa-camera-retro"></i></div>
+                        <div class="setting-nav-text">
+                            <h3>Ảnh đại diện hồ sơ</h3>
+                            <p>Tải lên hoặc thay đổi hình ảnh đại diện cá nhân hiển thị trên hệ thống của bạn.</p>
+                        </div>
+                    </div>
+
+                    <div class="setting-nav-card glass-card" onclick="openSettingPanel('panel-info')">
+                        <div class="setting-nav-icon" style="color: #3b82f6;"><i class="fa-regular fa-address-card"></i></div>
+                        <div class="setting-nav-text">
+                            <h3>Thông tin hệ thống</h3>
+                            <p>Xem tên tài khoản đang sử dụng và cấp độ quyền hạn của bạn trên máy chủ.</p>
+                        </div>
+                    </div>
+                    <div class="setting-nav-card glass-card" onclick="openSettingPanel('panel-password')">
+                        <div class="setting-nav-icon" style="color: #ef4444;"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div class="setting-nav-text">
+                            <h3>Thay đổi Mật khẩu</h3>
+                            <p>Bảo mật tài khoản bằng mật khẩu mới nếu bạn nghi ngờ có người khác đăng nhập.</p>
+                        </div>
+                    </div>
+                    <div class="setting-nav-card glass-card" onclick="openSettingPanel('panel-phone')">
+                        <div class="setting-nav-icon" style="color: #f59e0b;"><i class="fa-solid fa-mobile-screen"></i></div>
+                        <div class="setting-nav-text">
+                            <h3>Số điện thoại khôi phục</h3>
+                            <p>Thêm số điện thoại dự phòng để lấy lại mật khẩu nếu bạn vô tình quên mất.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-profile" class="setting-detail-panel">
+                <button class="btn-back" onclick="closeSettingPanel()"><i class="fa-solid fa-arrow-left"></i> Quay lại Menu Cài đặt</button>
+                <div class="glass-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; max-width: 500px;">
+                    <h3 class="settings-title" style="justify-content: center; width: 100%;"><i class="fa-solid fa-camera-retro" style="color: #10b981;"></i> Hồ Sơ Cá Nhân</h3>
+                    
+                    <div class="profile-edit-container">
+                        <div class="profile-avatar-wrapper">
+                            <img id="profileEditAvatar" src="" alt="Avatar">
+                            <label for="avatarUploadInput" class="avatar-edit-btn">
+                                <i class="fa-solid fa-camera"></i> Đổi ảnh
+                            </label>
+                            <input type="file" id="avatarUploadInput" accept="image/*" style="display: none;" onchange="changeAvatar(this)">
+                        </div>
+                        <h3 id="profileEditName" style="margin-top: 25px; font-size: 20px; font-weight: 700; color: #fff;">Đang tải...</h3>
+                        <p style="color: #94a3b8; font-size: 13px; margin-top: 5px;">Hỗ trợ định dạng JPG, PNG. Kích thước nhỏ hơn 2MB.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-info" class="setting-detail-panel">
+                <button class="btn-back" onclick="closeSettingPanel()"><i class="fa-solid fa-arrow-left"></i> Quay lại Menu Cài đặt</button>
+                <div class="glass-card" style="max-width: 500px;">
+                    <h3 class="settings-title"><i class="fa-regular fa-address-card" style="color: #3b82f6;"></i> Thông tin hệ thống</h3>
+                    <div class="settings-info-row">
+                        <span style="color: #cbd5e1;">Tên tài khoản:</span>
+                        <span id="settingUsername" style="font-weight: 600; color: #fff;">Đang tải...</span>
+                    </div>
+                    <div class="settings-info-row" style="border-bottom: none;">
+                        <span style="color: #cbd5e1;">Chức vụ (Quyền hạn):</span>
+                        <span id="settingRole" style="font-weight: 600;">Đang tải...</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-password" class="setting-detail-panel">
+                <button class="btn-back" onclick="closeSettingPanel()"><i class="fa-solid fa-arrow-left"></i> Quay lại Menu Cài đặt</button>
+                <div class="glass-card" style="max-width: 500px;">
+                    <h3 class="settings-title"><i class="fa-solid fa-shield-halved" style="color: #ef4444;"></i> Thay đổi Mật khẩu</h3>
+                    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">Đổi mật khẩu nếu bạn nghi ngờ có người khác đang biết mật khẩu của mình.</p>
+                    <form onsubmit="handleChangePassword(event)">
+                        <input type="password" id="oldPasswordInput" class="settings-input" placeholder="Nhập mật khẩu HIỆN TẠI..." required>
+                        <input type="password" id="newPasswordInput" class="settings-input" placeholder="Nhập mật khẩu MỚI..." required>
+                        <input type="password" id="confirmNewPasswordInput" class="settings-input" placeholder="Nhập LẠI mật khẩu MỚI..." required>
+                        <button type="submit" class="btn-primary" style="width: 100%; justify-content: center;"><i class="fa-solid fa-key"></i> Lưu mật khẩu mới</button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="panel-phone" class="setting-detail-panel">
+                <button class="btn-back" onclick="closeSettingPanel()"><i class="fa-solid fa-arrow-left"></i>Quay lại Menu Cài đặt</button>
+                <div class="glass-card" style="max-width: 500px;">
+                    <h3 class="settings-title"><i class="fa-solid fa-mobile-screen" style="color: #10b981;"></i> Số điện thoại khôi phục</h3>
+                    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">
+                        Thêm số điện thoại dự phòng để khôi phục lại mật khẩu nếu bạn lỡ quên.</p>
+                    <form onsubmit="handleSavePhone(event)">
+                        <input type="text" id="phoneInput" class="settings-input" placeholder="Ví dụ: 0987654321..." required>
+                        <button type="submit" class="btn-secondary" style="width: 100%; border-color: rgba(16, 185, 129, 0.4); color: #10b981;"><i class="fa-solid fa-floppy-disk"></i> Lưu số điện thoại</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="personalSpace" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Không Gian Làm Việc Riêng <i class="fa-solid fa-fingerprint" style="color: #10b981; font-size:18px;"></i></h2>
+            </div>
+            <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 30px; text-shadow: 0 1px 3px rgba(0,0,0,0.5);">
+                Đây là khu vực bảo mật tuyệt đối của riêng bạn. Không ai khác trên hệ thống có thể nhìn thấy dữ liệu này.</p>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 25px; margin-bottom: 40px;">
+                <div class="stat-card glass-card">
+                    <i class="fa-solid fa-hard-drive"></i>
+                    <div class="stat-value">4.2 <span style="font-size: 16px; color: #cbd5e1; font-weight: 500;">GB</span></div>
+                    <div class="stat-label">Dung lượng đã sử dụng / 15GB</div>
+                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 8px; overflow: hidden;">
+                        <div style="width: 28%; height: 100%; background: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.5);"></div>
+                    </div>
+                </div>
+                <div class="stat-card glass-card">
+                    <i class="fa-solid fa-video"></i>
+                    <div class="stat-value" id="workspaceMyVideoCount">0</div>
+                    <div class="stat-label">Video đã tải lên hệ thống</div>
+                </div>
+                <div class="stat-card glass-card">
+                    <i class="fa-solid fa-key" style="color: #eab308;"></i>
+                    <div class="stat-value" style="font-size: 16px; letter-spacing: 2px; margin-top: 10px; text-shadow: none;">sk_live_x8F9...</div>
+                    <div class="stat-label">Khóa API Cá Nhân (Secret Key)</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboard" class="tab-content active">
+            
+            <div class="hero-banner-new">
+                <div class="hero-left">
+                    <h1>Hệ Thống Phân Phối<br>Video HLS</h1>
+                    <p>Hệ thống tự động phân phối video phân mảnh động<br>thời gian thực, đảm bảo tốc độ truyền tải tối đa.</p>
+                </div>
+                <div class="hero-right">
+                    <div class="upload-card-new">
+                        <div style="font-size: 13px; color: #cbd5e1; margin-bottom: 10px; font-weight: 600;">Tải video lên hệ thống</div>
+                        <form action="/upload" method="POST" enctype="multipart/form-data" onsubmit="prepareUpload(); showLoading();" style="display: flex; flex-direction: column;">
+                            <input type="hidden" name="uploader" id="uploaderInput">
+                            
+                            <input type="text" name="title" id="videoTitleInput" placeholder="Nhập tên video bạn thích..." required 
+                                   style="background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); padding: 10px 14px; border-radius: 8px; color: white; font-size: 12px; font-weight: 600; outline: none; margin-bottom: 10px; transition: 0.3s;"
+                                   onfocus="this.style.borderColor='var(--accent-primary)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+
+                            <label for="videoFile" class="file-selector-new">
+                                <span id="fileNameText">Chọn tệp MP4 gốc...</span>
+                                <i class="fa-solid fa-cloud-arrow-up" style="color: #94a3b8; font-size:16px;"></i>
+                            </label>
+                            <input type="file" name="videoFile" id="videoFile" accept="video/*" required onchange="updateFileName(this)" style="display:none;">
+                            <button type="submit" class="btn-upload-new">Tiến hành băm luồng HLS</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-header">
+                <h2 class="section-title">Các luồng video do bạn<span class="public-badge" style="background: rgba(59, 130, 246, 0.3); color:#fff; font-weight:700;">Node của bạn</span></h2>
+            </div>
+            <div id="myVideoGrid" class="video-grid"></div>
+        </div>
+
+        <div id="publicVideos" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Kho Video Khám Phá Chung <i class="fa-solid fa-globe" style="color: #3b82f6; font-size:18px;"></i> <span class="public-badge">PUBLIC VIDEOS</span></h2>
+            </div>
+            
+            <div class="section-header" style="margin-top: 10px;">
+                <h3 style="font-size: 18px; font-weight: 700; text-shadow: 0 2px 5px rgba(0,0,0,0.5);">Tất cả video trên Server</h3>
+            </div>
+            <div id="publicVideoGrid" class="video-grid"></div>
+        </div>
+
+        <div id="hls" class="tab-content">
+            <div class="page-container">
+                <div class="page-header"><h1>Cấu Trúc Tệp Tin Phân Đoạn (HLS Segments)</h1></div>
+                <div class="glass-card">
+                    <h3><i class="fa-solid fa-magnifying-glass-chart" style="color:#3b82f6;"></i> Trình bóc tách gói tin HLS Live Inspector</h3>
+                    <select id="inspectSelector" class="config-select" style="width: 100%; max-width: 450px; margin-bottom: 20px; margin-top:15px; background:rgba(0,0,0,0.4);" onchange="runHlsInspector(this.value)"></select>
+                    <div id="inspectResultArea" style="display: none; margin-top: 15px;">
+                        <h4 style="font-size:14px; margin-bottom:8px; color:var(--text-secondary);">Nội dung tệp dẫn đường (.m3u8 Preview):</h4>
+                        <div style="background: rgba(0,0,0,0.5); padding: 18px; border-radius: 10px; font-family: 'Courier New', monospace; color: #38bdf8; font-size: 13px; line-height: 1.6; border: 1px solid rgba(255,255,255,0.1);" id="manifestOutput"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="nodes" class="tab-content">
+            <div class="page-container">
+                <div class="page-header"><h1>Kiến Trúc Node Phân Tán</h1></div>
+                <div class="glass-card" style="max-width:500px;">
+                    <h3><i class="fa-solid fa-network-wired" style="color:#eab308;"></i> Cụm Máy Chủ Edge Đệm</h3>
+                    <div style="padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.05); margin-top:10px;"><div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;"><span>Hà Nội</span><span id="metric-hn"></span></div><div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 8px; overflow: hidden;"><div id="bar-hn" style="height: 100%; background: var(--accent-primary); transition: width 0.5s ease; box-shadow: 0 0 8px rgba(59,130,246,0.6);"></div></div></div>
+                    <div style="padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;"><span>Sơn La</span><span id="metric-sl"></span></div><div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 8px; overflow: hidden;"><div id="bar-sl" style="height: 100%; background: var(--accent-primary); transition: width 0.5s ease; box-shadow: 0 0 8px rgba(59,130,246,0.6);"></div></div></div>
+                    <div style="padding: 14px 0;"><div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: 600;"><span>TP. Hồ Chí Minh</span><span id="metric-hcm"></span></div><div style="width: 100%; height: 6px; background: rgba(255,255,255,0.1); border-radius: 10px; margin-top: 8px; overflow: hidden;"><div id="bar-hcm" style="height: 100%; background: var(--accent-primary); transition: width 0.5s ease; box-shadow: 0 0 8px rgba(59,130,246,0.6);"></div></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="ffmpeg" class="tab-content">
+            <div class="page-container">
+                <div class="page-header"><h1>Tham Số Lệnh Xử Lý Động FFmpeg</h1></div>
+                <div class="glass-card" style="max-width: 850px; margin-top:20px;">
+                    <select id="paramTime" class="config-select" style="margin-right: 10px; background:rgba(0,0,0,0.4);" onchange="updateFfmpegCommand()"><option value="5">5s</option><option value="10" selected>10s</option></select>
+                    <select id="paramProfile" class="config-select" style="background:rgba(0,0,0,0.4);" onchange="updateFfmpegCommand()"><option value="baseline" selected>Baseline</option><option value="high">High</option></select>
+                    <div style="background: rgba(0,0,0,0.5); padding: 18px; border-radius: 10px; font-family: 'Courier New', monospace; color: #38bdf8; font-size: 13px; line-height: 1.6; border: 1px solid rgba(255,255,255,0.1); margin-top: 15px;" id="ffmpegDynamicCode"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="users" class="tab-content">
+            <div class="page-container">
+                <div class="page-header">
+                    <h1 style="display: flex; justify-content: space-between; align-items: center; text-shadow: 0 2px 10px rgba(0,0,0,0.5);">
+                        <span id="adminPageTitle"><i class="fa-solid fa-users-gear" style="color: #ef4444; margin-right: 10px;"></i>Khu Vực Quản Trị Hệ Thống</span>
+                        <span style="color: #cbd5e1; font-size: 16px; font-weight:600;" id="totalUsersCount">0 tài khoản</span>
+                    </h1>
+                </div>
+                
+                <div style="display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap;">
+                    <div class="search-container" style="margin-bottom: 0; flex-grow: 1; max-width: 400px;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="userSearchInput" onkeyup="filterUsers()" placeholder="Nhập tên tài khoản cần tìm kiếm...">
+                    </div>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="btnAddAdmin" class="btn-send" style="background: #10b981; padding: 12px 20px; font-size: 13px;" onclick="openAddUserModal('admin')"><i class="fa-solid fa-user-shield"></i> Thêm Admin</button>
+                        <button id="btnAddUser" class="btn-send" style="background: #3b82f6; padding: 12px 20px; font-size: 13px;" onclick="openAddUserModal('user')"><i class="fa-solid fa-user-plus"></i> Thêm Khách</button>
+                    </div>
+                </div>
+                
+                <div id="superAdminSection">
+                    <h3 style="color: #f59e0b; margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 5px rgba(0,0,0,0.5);">
+                        <i class="fa-solid fa-chess-king"></i> Danh sách Tổng Tư Lệnh (Super Admin)
+                    </h3>
+                    <table class="user-table">
+                        <thead><tr><th style="width: 10%;">STT</th><th style="width: 35%;">Tên đăng nhập</th><th style="width: 30%;">Mật khẩu</th><th style="width: 25%;">Hành động</th></tr></thead>
+                        <tbody id="superAdminTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div id="adminSection">
+                    <h3 style="color: #ef4444; margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 5px rgba(0,0,0,0.5);">
+                        <i class="fa-solid fa-user-shield"></i> Danh sách Quản Trị Viên (Admin)
+                    </h3>
+                    <table class="user-table">
+                        <thead><tr><th style="width: 10%;">STT</th><th style="width: 35%;">Tên đăng nhập</th><th style="width: 30%;">Mật khẩu</th><th style="width: 25%;">Hành động</th></tr></thead>
+                        <tbody id="adminTableBody"></tbody>
+                    </table>
+                </div>
+
+                <h3 style="color: #3b82f6; margin-bottom: 12px; font-size: 16px; display: flex; align-items: center; gap: 8px; text-shadow: 0 1px 5px rgba(0,0,0,0.5);">
+                    <i class="fa-solid fa-user"></i> Danh sách Người dùng thường (Khách)
+                </h3>
+                <table class="user-table">
+                    <thead><tr><th style="width: 10%;">STT</th><th style="width: 35%;">Tên đăng nhập</th><th style="width: 30%;">Mật khẩu</th><th style="width: 25%;">Hành động</th></tr></thead>
+                    <tbody id="userTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="privateMessages" class="tab-content">
+            <div class="section-header">
+                <h2 class="section-title">Trò chuyện riêng tư <i class="fa-solid fa-paper-plane" style="color: #3b82f6;"></i></h2>
+            </div>
+            <div class="chat-layout">
+                <div class="chat-sidebar">
+                    <div class="chat-sidebar-header"><i class="fa-solid fa-address-book"></i> Liên hệ gần đây</div>
+                    <div id="contactList" class="contact-list">
+                        <p style="padding: 15px; color: var(--text-secondary); font-size: 13px;">Chưa có cuộc trò chuyện nào.</p>
+                    </div>
+                </div>
+                <div class="chat-main" id="chatMainArea" style="display: none;">
+                    <div class="chat-header">
+                        <img id="currentChatAvatar" src="" class="contact-avatar">
+                        <div>
+                            <div id="currentChatName" style="font-weight: 700; color: #fff; font-size: 16px;">Tên người nhận</div>
+                            <div style="font-size: 12px; color: #10b981;">Đang trực tuyến</div>
+                        </div>
+                    </div>
+                    <div class="chat-messages-area" id="privateChatHistory"></div>
+                    <div class="chat-input-area">
+                        <form class="chat-form" onsubmit="sendPrivateMessage(event)">
+                            <input type="text" id="privateMsgInput" placeholder="Nhập tin nhắn của bạn..." autocomplete="off" required>
+                            <button type="submit" class="btn-primary" style="padding: 14px 20px;"><i class="fa-solid fa-paper-plane"></i></button>
+                        </form>
+                    </div>
+                </div>
+                <div class="chat-main" id="chatEmptyState" style="align-items: center; justify-content: center; color: var(--text-secondary);">
+                    <i class="fa-regular fa-comments" style="font-size: 60px; margin-bottom: 20px; opacity: 0.5;"></i>
+                    <h3>Chọn một người để bắt đầu trò chuyện</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loadingOverlay">
+        <div class="spinner" style="margin-bottom: 20px;"></div>
+        <h3 style="letter-spacing:1px; color: white; margin-bottom: 15px;" id="loadingText">HỆ THỐNG ĐANG XỬ LÝ VIDEO...</h3>
+        <div style="width: 300px; height: 8px; background: rgba(255,255,255,0.2); border-radius: 10px; overflow: hidden;">
+            <div id="uploadProgressBar" style="width: 0%; height: 100%; background: #10b981; box-shadow: 0 0 10px rgba(16,185,129,0.5); transition: width 0.3s ease;"></div>
+        </div>
+        <div id="uploadProgressText" style="margin-top: 10px; font-size: 14px; font-weight: bold; color: #10b981;">0%</div>
+    </div>
+
+    <script src="index.js"></script>
+
+</body>
+</html>
