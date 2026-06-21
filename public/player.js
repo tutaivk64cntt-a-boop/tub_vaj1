@@ -824,3 +824,70 @@ function clearNotifications() {
         }
     });
 }
+//Nút tải video
+// HÀM XỬ LÝ KHI BẤM NÚT TẢI VỀ TRONG TRANG XEM PHIM
+// --- HÀM TẢI TRONG PLAYER (ĐÃ GẮN KHÓA BẢO MẬT) ---
+async function downloadVideoPlayer() {
+    const title = document.getElementById('videoTitle').innerText;
+    const activeUser = localStorage.getItem('streamVibeActiveUser');
+    
+    // Tìm video hiện tại trong CSDL để xem ai là tác giả
+    const vidRes = await fetch('/api/videos');
+    const videos = await vidRes.json();
+    const currentVid = videos.find(v => v.videoId === videoId);
+    
+    if(currentVid) {
+        // Hỏi server quyền của tác giả này
+        const pRes = await fetch('/api/user-permissions');
+        const perms = await pRes.json();
+        const uploaderPerm = perms[currentVid.uploader] || { download: 'allow' };
+        
+        // CHẶN NGAY NẾU BỊ KHÓA
+        if (uploaderPerm.download === 'block' && currentVid.uploader !== activeUser) {
+            openAlert("Tác giả đã Khóa", "Xin lỗi, Tác giả đã khóa tính năng tải video này!", "error");
+            return;
+        }
+    }
+
+    openAlert("Đang xử lý tải về", "Hệ thống HLS đang truy xuất dữ liệu video. Xin vui lòng chờ...", "success");
+    setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = `/videos/${videoId}/main.m3u8`;
+        a.download = `${title}.m3u8`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }, 1500);
+}
+// ==========================================
+// HÀM XỬ LÝ MENU CHẤT LƯỢNG VIDEO
+// ==========================================
+function toggleQualityMenu(event) {
+    event.stopPropagation(); // Ngăn sự kiện click truyền ra ngoài
+    const dropdown = document.getElementById('qualityDropdown');
+    if (dropdown.style.display === 'none' || dropdown.style.display === '') {
+        dropdown.style.display = 'flex';
+    } else {
+        dropdown.style.display = 'none';
+    }
+}
+
+function changeQuality(quality) {
+    document.getElementById('qualityText').innerText = quality;
+    document.getElementById('qualityDropdown').style.display = 'none';
+    
+    openAlert("Thành công", `Đã yêu cầu máy chủ chuyển chất lượng video sang: ${quality}`, "success");
+    
+    if (typeof addTerminalLog === 'function') {
+        addTerminalLog(`<span style="color:#f59e0b;">[HLS Engine] Yêu cầu chuyển luồng độ phân giải: ${quality}</span>`);
+    }
+}
+
+// Bấm chuột ra ngoài khoảng trống thì tự động đóng menu chất lượng
+window.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('qualityDropdown');
+    const btn = document.getElementById('qualityButton');
+    if (dropdown && btn && !btn.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});

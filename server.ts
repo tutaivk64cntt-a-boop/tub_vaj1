@@ -42,6 +42,12 @@ async function initMySQL(): Promise<void> {
         )`);
         try { await db.execute('ALTER TABLE users ADD COLUMN followers LONGTEXT'); } catch (e) { }
         try { await db.execute('ALTER TABLE users ADD COLUMN following LONGTEXT'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN email VARCHAR(255) DEFAULT ""'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN phone VARCHAR(50) DEFAULT ""'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN privacy_mode VARCHAR(20) DEFAULT "public"'); } catch(e) {}
+        try { await db.execute('ALTER TABLE users ADD COLUMN allow_download VARCHAR(20) DEFAULT "allow"'); } catch(e) {}
+        try { await db.execute('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL'); } catch(e) {}
+        try { await db.execute('ALTER TABLE users ADD COLUMN last_name_change DATETIME DEFAULT NULL'); } catch(e) {}
         await db.execute(`CREATE TABLE IF NOT EXISTS videos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             videoId VARCHAR(255) UNIQUE NOT NULL,
@@ -110,6 +116,53 @@ io.on('connection', (socket: Socket) => {
 
     socket.on('leave_sync_room', (roomCode: string) => { socket.leave(roomCode); });
     socket.on('video_action', (data: any) => { socket.to(data.roomCode).emit('sync_video_action', data); });
+});
+
+// API ĐỔI TÊN (GIỚI HẠN 30 NGÀY)
+app.post('/api/settings/change-name', async (req: Request, res: Response): Promise<any> => {
+    try {
+        if(!db) return res.json({success:false});
+        const { username, newName } = req.body;
+        
+        // 1. Kiểm tra ngày đổi tên gần nhất
+        const [rows]: any = await db.execute('SELECT last_name_change FROM users WHERE username = ?', [username]);
+        if(rows.length === 0) return res.json({success:false, message: 'Tài khoản không tồn tại.'});
+        
+        const lastChange = rows[0].last_name_change;
+        if (lastChange) {
+            const daysDiff = (new Date().getTime() - new Date(lastChange).getTime()) / (1000 * 3600 * 24);
+            if (daysDiff < 30) {
+                const daysLeft = Math.ceil(30 - daysDiff);
+                return res.json({success: false, message: `Hệ thống chỉ cho phép đổi tên 30 ngày 1 lần. Bạn cần đợi thêm ${daysLeft} ngày nữa!`});
+            }
+        }
+        
+        // 2. Cập nhật tên mới và lưu lại thời gian đổi
+        await db.execute('UPDATE users SET display_name = ?, last_name_change = NOW() WHERE username = ?', [newName, username]);
+        res.json({success: true});
+    } catch(e) { res.json({success: false, message: 'Lỗi máy chủ!'}); }
+});
+
+// API Cập nhật cài đặt Quyền riêng tư & Tải về
+app.post('/api/settings/update', async (req: Request, res: Response): Promise<any> => {
+    try {
+        if(!db) return res.json({success:false});
+        const { username, field, value } = req.body;
+        if(field === 'privacy') await db.execute('UPDATE users SET privacy_mode = ? WHERE username = ?', [value, username]);
+        if(field === 'download') await db.execute('UPDATE users SET allow_download = ? WHERE username = ?', [value, username]);
+        res.json({success: true});
+    } catch(e) { res.json({success: false}); }
+});
+
+// API Lấy danh sách quyền của toàn bộ User (để Frontend kiểm tra)
+app.get('/api/user-permissions', async (req: Request, res: Response): Promise<any> => {
+    try {
+        if(!db) return res.json({});
+        const [rows] = await db.execute<RowDataPacket[]>('SELECT username, privacy_mode, allow_download FROM users');
+        const perms: any = {};
+        rows.forEach(r => { perms[r.username] = { privacy: r.privacy_mode, download: r.allow_download }; });
+        res.json(perms);
+    } catch(e) { res.json({}); }
 });
 
 // =========================================================================
@@ -319,12 +372,11 @@ app.post('/api/videos/:id/like', async (req: Request, res: Response): Promise<an
         }
     } catch (error) { res.status(500).json({ success: false }); }
 });
-
+//Đăng ký
 app.post('/api/register', async (req: Request, res: Response): Promise<any> => {
-
     try {
         if (!db) return res.status(500).json({ success: false, message: 'Chưa kết nối MySQL.' });
-        const { username, password } = req.body;
+        const { username, password, email, phone } = req.body; 
         const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM users WHERE username = ?', [username]);
         if (rows.length > 0) return res.status(400).json({ success: false, message: 'Tên tài khoản này đã có người sử dụng!' });
 
@@ -332,10 +384,40 @@ app.post('/api/register', async (req: Request, res: Response): Promise<any> => {
         const lowerName = username.toLowerCase();
         if (lowerName === 'lam' || lowerName === 'boss') role = 'superadmin';
         else if (lowerName.includes('admin') || lowerName.includes('quanly')) role = 'admin';
-        await db.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', [username, password, role]);
+        
+        await db.execute('INSERT INTO users (username, password, email, phone, role) VALUES (?, ?, ?, ?, ?)', [username, password, email || '', phone || '', role]);
         res.json({ success: true, message: 'Đăng ký thành công!', role: role });
     } catch (error) { res.status(500).json({ success: false, message: 'Lỗi máy chủ.' }); }
+});
 
+// API QUÊN MẬT KHẨU HOÀN TOÀN MỚI
+app.post('/api/forgot-password', async (req: Request, res: Response): Promise<any> => {
+    try {
+        if (!db) return res.status(500).json({ success: false, message: 'Chưa kết nối MySQL.' });
+        const { username, email, phone } = req.body;
+        
+        let query = '';
+        let params = [];
+        
+        // CHỈ check Email HOẶC Phone dựa trên thông tin gửi lên
+        if (email) {
+            query = 'SELECT password FROM users WHERE username = ? AND email = ? AND email != ""';
+            params = [username, email];
+        } else if (phone) {
+            query = 'SELECT password FROM users WHERE username = ? AND phone = ? AND phone != ""';
+            params = [username, phone];
+        } else {
+            return res.status(400).json({ success: false, message: 'Thiếu thông tin khôi phục!' });
+        }
+        
+        const [rows] = await db.execute<RowDataPacket[]>(query, params);
+        
+        if (rows.length > 0) {
+            res.json({ success: true, password: rows[0].password });
+        } else {
+            res.status(400).json({ success: false, message: 'Thông tin xác nhận không đúng! Vui lòng thử lại.' });
+        }
+    } catch (error) { res.status(500).json({ success: false, message: 'Lỗi máy chủ.' }); }
 });
 
 app.post('/api/login', async (req: Request, res: Response): Promise<any> => {

@@ -1,3 +1,6 @@
+window.globalPermissions = {};
+fetch('/api/user-permissions').then(r=>r.json()).then(d => { window.globalPermissions = d; });
+
 const socket = io(); 
 
 let pendingAction = null; 
@@ -205,10 +208,85 @@ document.querySelectorAll('.menu-item').forEach(item => {
         if (targetId === 'statistics') loadStatistics();
         if (targetId === 'settings') closeSettingPanel();
         
+        // CHẠY HÀM THỐNG KÊ CÁ NHÂN KHI BẤM VÀO TAB MỚI
+        if (targetId === 'personalStats') loadPersonalStatistics();
+        
         localStorage.setItem('streamVibeActiveTab', targetId);
         if(window.innerWidth <= 768) closeMobileSidebar();
     }); 
 });
+
+// ==========================================
+// TÍNH NĂNG THỐNG KÊ KÊNH CÁ NHÂN (YOUTUBE STUDIO)
+// ==========================================
+window.myRankedVideos = [];
+async function loadPersonalStatistics() {
+    try {
+        const res = await fetch('/api/statistics');
+        const data = await res.json();
+        if (data.success) {
+            // LỌC CHỈ LẤY CÁC VIDEO DO CHÍNH MÌNH ĐĂNG TẢI
+            window.myRankedVideos = data.allRanked.filter(v => v.uploader === activeUser);
+            
+            let totalViews = 0, totalLikes = 0, totalComments = 0;
+            
+            // CỘNG DỒN SỐ LIỆU TẤT CẢ CÁC VIDEO CỦA MÌNH
+            window.myRankedVideos.forEach(v => {
+                totalViews += v.viewsCount;
+                totalLikes += v.likesCount;
+                totalComments += v.commentCount;
+            });
+            
+            document.getElementById('myTotalViews').innerText = totalViews;
+            document.getElementById('myTotalLikes').innerText = totalLikes;
+            document.getElementById('myTotalComments').innerText = totalComments;
+            
+            // Render giao diện danh sách Top video của mình (Mặc định xếp theo Lượt xem)
+            renderMyRankedGrid('views');
+        }
+    } catch(e) {}
+}
+
+function renderMyRankedGrid(sortBy) {
+    const grid = document.getElementById('myRankedVideoGrid'); 
+    if (!grid) return; 
+    grid.innerHTML = '';
+    
+    // Reset màu nút bấm
+    ['btnSortMyViews', 'btnSortMyChats', 'btnSortMyLikes'].forEach(id => { 
+        document.getElementById(id).style.background = 'rgba(255,255,255,0.1)'; 
+        document.getElementById(id).style.color = '#cbd5e1'; 
+    });
+    
+    // Đổi màu nút được bấm
+    if(sortBy === 'views') { document.getElementById('btnSortMyViews').style.background = '#3b82f6'; document.getElementById('btnSortMyViews').style.color = '#fff'; }
+    else if(sortBy === 'comments') { document.getElementById('btnSortMyChats').style.background = '#ef4444'; document.getElementById('btnSortMyChats').style.color = '#fff'; }
+    else if(sortBy === 'likes') { document.getElementById('btnSortMyLikes').style.background = '#f43f5e'; document.getElementById('btnSortMyLikes').style.color = '#fff'; }
+
+    // Sắp xếp
+    let sortedList = [...window.myRankedVideos];
+    if (sortBy === 'views') sortedList.sort((a, b) => b.viewsCount - a.viewsCount);
+    else if (sortBy === 'comments') sortedList.sort((a, b) => b.commentCount - a.commentCount);
+    else if (sortBy === 'likes') sortedList.sort((a, b) => b.likesCount - a.likesCount);
+
+    if (sortedList.length === 0) {
+        grid.innerHTML = '<p style="color:var(--text-secondary); margin-top:20px;">Bạn chưa tải lên video nào để có thể thống kê.</p>';
+        return;
+    }
+
+    // In thẻ video ra kèm theo huy hiệu Top 1, 2, 3
+    sortedList.forEach((video, index) => {
+        const canDel = true; // Video của mình thì đương nhiên được quyền Xóa
+        const card = createVideoCard(video, activeUser, getUserRole(activeUser), canDel, true);
+        
+        const rankBadge = document.createElement('div'); 
+        rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index===0?'#fbbf24':(index===1?'#94a3b8':(index===2?'#b45309':'#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5);`;
+        rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1); 
+        card.appendChild(rankBadge);
+        
+        grid.appendChild(card);
+    });
+}
 
 // LOGIC HOÀN TOÀN MỚI: Quét từng người nhắn tin để hiển thị số đỏ chuẩn xác!
 async function loadContacts() {
@@ -365,10 +443,15 @@ function closeConfirm() {
     pendingAction = null; pendingData = null; 
 }
 
+// 1. HÀM XỬ LÝ ĐĂNG XUẤT VÀ XÓA BÀI
 function executeConfirmAction() {
     if (pendingAction === 'logout') { 
         localStorage.removeItem('streamVibeActiveUser'); 
         localStorage.removeItem('streamVibeActiveRole');
+        
+        // Ép trở về trang "Video của tôi" sau khi Đăng xuất
+        localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
+        
         window.location.reload(); 
     } 
     else if (pendingAction === 'deleteUser') {
@@ -379,6 +462,7 @@ function executeConfirmAction() {
                 if(localStorage.getItem('streamVibeActiveUser') === pendingData) { 
                     localStorage.removeItem('streamVibeActiveUser'); 
                     localStorage.removeItem('streamVibeActiveRole');
+                    localStorage.setItem('streamVibeActiveTab', 'dashboard'); // Ép về trang chủ
                     window.location.reload(); 
                 } else { openAlert("Thành công", `Đã xóa tài khoản.`); }
             }
@@ -626,21 +710,35 @@ function timeAgo(dateString) {
     return "Vừa xong";
 }
 
+// --- HÀM TẠO THẺ VIDEO (ĐÃ GẮN BỘ LỌC RIÊNG TƯ) ---
 function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = false) {
+    // 1. KIỂM TRA QUYỀN RIÊNG TƯ: Nếu tác giả đặt "Riêng tư", ẩn video trừ khi bạn là Tác giả
+    if (window.globalPermissions && window.globalPermissions[video.uploader]) {
+        const perm = window.globalPermissions[video.uploader];
+        if (perm.privacy === 'private' && video.uploader !== activeUser && activeRole !== 'superadmin') {
+            const emptyCard = document.createElement('div');
+            emptyCard.style.display = 'none'; // Ẩn tàng hình
+            return emptyCard;
+        }
+    }
+
     const id = video.videoId; const ownerName = video.uploader; const safeTitle = (video.title||'').replace(/'/g, "\\'"); 
     const viewCount = Array.isArray(video.views) ? video.views.length : 0;
     const likeCount = video.likesCount !== undefined ? video.likesCount : (Array.isArray(video.likes) ? video.likes.length : 0);
     const card = document.createElement('div'); card.className = 'video-card glass-card';
     
+    // Gửi kèm ownerName vào nút tải về để hàm kiểm tra quyền tải
     let menuHtml = canDelete ? `
         <div class="dropdown-content" id="dropdown-${id}">
             <div class="dropdown-item" onclick="watchVideo('${id}')"><i class="fa-solid fa-play"></i> Xem video</div>
+            <div class="dropdown-item" onclick="downloadVideo('${id}', '${safeTitle}', event, '${ownerName}')"><i class="fa-solid fa-download"></i> Tải về máy</div>
             <div class="dropdown-item" onclick="shareVideo('${id}', event)"><i class="fa-solid fa-share-nodes"></i> Chia sẻ Link</div>
             <div class="dropdown-item" onclick="openEditVideoModal('${id}', '${safeTitle}', event)"><i class="fa-solid fa-pen"></i> Đổi tên</div>
             <div class="dropdown-item delete" onclick="requestDeleteVideo('${id}', event)"><i class="fa-solid fa-trash-can"></i> Xóa</div>
         </div>` : `
         <div class="dropdown-content" id="dropdown-${id}">
             <div class="dropdown-item" onclick="watchVideo('${id}')"><i class="fa-solid fa-play"></i> Xem video</div>
+            <div class="dropdown-item" onclick="downloadVideo('${id}', '${safeTitle}', event, '${ownerName}')"><i class="fa-solid fa-download"></i> Tải về máy</div>
             <div class="dropdown-item" onclick="shareVideo('${id}', event)"><i class="fa-solid fa-share-nodes"></i> Chia sẻ Link</div>
         </div>`;
 
@@ -661,7 +759,61 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
         </div>`;
     return card;
 }
-function requestDeleteVideo(id, event) { event.stopPropagation(); document.getElementById(`dropdown-${id}`).classList.remove('show'); openConfirm('deleteVideo', id, 'Xóa', 'Bạn chắc chắn muốn xóa?'); }
+
+// HÀM XỬ LÝ KHI BẤM NÚT TẢI VỀ NGOÀI TRANG CHỦ
+// --- HÀM TẢI VIDEO (ĐÃ GẮN KHÓA TẢI) ---
+async function downloadVideo(id, title, event, uploaderName) {
+    event.stopPropagation(); 
+    document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
+    
+    // 2. KIỂM TRA QUYỀN TẢI: Chặn nếu tác giả đặt "Khóa"
+    const activeU = localStorage.getItem('streamVibeActiveUser');
+    if (window.globalPermissions && window.globalPermissions[uploaderName]) {
+        if (window.globalPermissions[uploaderName].download === 'block' && uploaderName !== activeU) {
+            openAlert("Tác giả đã Khóa", "Xin lỗi, Tác giả đã khóa không cho phép tải video này!", "error");
+            return; // Dừng, không cho tải
+        }
+    }
+
+    openAlert("Đang xử lý tải về", "Hệ thống HLS đang truy xuất dữ liệu video. Xin vui lòng chờ...", "success");
+    setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = `/videos/${id}/main.m3u8`;
+        a.download = `${title}.m3u8`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }, 1500);
+}
+
+// --- HÀM MỞ BẢNG VÀ LƯU CÀI ĐẶT QUYỀN RIÊNG TƯ / TẢI VIDEO ---
+function openPrivacySetting() { 
+    document.getElementById('privacySettingModal').style.display = 'flex'; 
+}
+
+function openDownloadSetting() { 
+    document.getElementById('downloadSettingModal').style.display = 'flex'; 
+}
+
+function saveAccountSetting(type) {
+    const val = type === 'privacy' 
+        ? document.querySelector('input[name="videoPrivacy"]:checked').value
+        : document.querySelector('input[name="videoDownload"]:checked').value;
+    
+    fetch('/api/settings/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: localStorage.getItem('streamVibeActiveUser'), field: type, value: val })
+    }).then(r=>r.json()).then(d=>{
+        // Đóng bảng sau khi lưu thành công
+        document.getElementById(type === 'privacy' ? 'privacySettingModal' : 'downloadSettingModal').style.display = 'none';
+        
+        openAlert("Thành công", `Đã lưu cài đặt ${type === 'privacy' ? 'Riêng tư' : 'Tải video'}! Hệ thống sẽ cập nhật sau vài giây.`, "success");
+        setTimeout(() => window.location.reload(), 2000);
+    });
+}
+function requestDeleteVideo(id, event) { 
+    event.stopPropagation(); document.getElementById(`dropdown-${id}`).classList.remove('show'); openConfirm('deleteVideo', id, 'Xóa', 'Bạn chắc chắn muốn xóa?');
+ }
 
 // ==========================================
 // TÍNH NĂNG THỐNG KÊ, THÔNG BÁO VÀ AUTH
@@ -739,17 +891,170 @@ function renderRankedGrid(sortBy) {
         grid.appendChild(card);
     });
 }
+// --- CÁC HÀM CHUYỂN ĐỔI GIAO DIỆN ĐĂNG NHẬP / ĐĂNG KÝ / QUÊN MẬT KHẨU ---
+let currentRecoveryMode = 'email'; // Biến lưu trạng thái hiện tại (Email hay SĐT)
 
-function loginAccount() {
-    const username = document.getElementById('usernameInput').value.trim(); const password = document.getElementById('passwordInput').value;
-    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    .then(r => r.json()).then(d => { if(d.success) { localStorage.setItem('streamVibeActiveUser', d.username); localStorage.setItem('streamVibeActiveRole', d.role); window.location.reload(); } else { document.getElementById('loginError').innerText = d.message; document.getElementById('loginError').style.display = 'block'; } });
+// --- CÁC HÀM CHUYỂN ĐỔI GIAO DIỆN ĐĂNG NHẬP / ĐĂNG KÝ / QUÊN MẬT KHẨU ---
+function showRegister() {
+    document.getElementById('authTitle').innerText = 'Đăng Ký Tài Khoản';
+    document.getElementById('authDesc').innerText = 'Nhập Email hoặc Số điện thoại để khôi phục mật khẩu sau này.';
+    
+    document.getElementById('recoveryInputWrapper').style.display = 'block'; 
+    document.getElementById('passwordInput').style.display = 'block';
+    document.getElementById('forgotPasswordLink').style.display = 'none';
+    
+    document.getElementById('actionButtons').style.display = 'none';
+    document.getElementById('forgotButtons').style.display = 'none';
+    document.getElementById('registerButtons').style.display = 'flex';
+    document.getElementById('loginError').style.display = 'none';
 }
 
+function showLogin() {
+    document.getElementById('authTitle').innerText = 'Cổng Quản Trị Hệ Thống';
+    document.getElementById('authDesc').innerText = 'Nhập tên và mật khẩu để Đăng nhập hệ thống.';
+    
+    document.getElementById('recoveryInputWrapper').style.display = 'none';
+    
+    document.getElementById('passwordInput').style.display = 'block';
+    document.getElementById('forgotPasswordLink').style.display = 'inline-block';
+    
+    document.getElementById('actionButtons').style.display = 'flex';
+    document.getElementById('forgotButtons').style.display = 'none';
+    document.getElementById('registerButtons').style.display = 'none';
+    document.getElementById('loginError').style.display = 'none';
+}
+
+function showForgotPassword() {
+    document.getElementById('authTitle').innerText = 'Khôi Phục Mật Khẩu';
+    document.getElementById('authDesc').innerText = 'Nhập thông tin để hệ thống tìm lại tài khoản của bạn.';
+    
+    document.getElementById('recoveryInputWrapper').style.display = 'block'; 
+    document.getElementById('passwordInput').style.display = 'none'; 
+    document.getElementById('forgotPasswordLink').style.display = 'none';
+    
+    document.getElementById('actionButtons').style.display = 'none';
+    document.getElementById('registerButtons').style.display = 'none';
+    document.getElementById('forgotButtons').style.display = 'flex';
+    document.getElementById('loginError').style.display = 'none';
+}
+
+// HÀM ĐỔI LINH HOẠT GIỮA EMAIL VÀ SĐT KHI BẤM NÚT BÊN TRONG Ô
+function toggleInputMethod() {
+    const inputEl = document.getElementById('recoveryInput');
+    const btnEl = document.getElementById('toggleRecoveryBtn');
+    
+    if (currentRecoveryMode === 'email') {
+        currentRecoveryMode = 'phone';
+        inputEl.placeholder = 'Nhập Số điện thoại của bạn...';
+        inputEl.type = 'text';
+        inputEl.value = '';
+        btnEl.innerText = 'Dùng Email';
+        btnEl.style.background = '#10b981'; // Đổi nút sang màu xanh lá
+    } else {
+        currentRecoveryMode = 'email';
+        inputEl.placeholder = 'Nhập Email của bạn...';
+        inputEl.type = 'email';
+        inputEl.value = '';
+        btnEl.innerText = 'Dùng SĐT';
+        btnEl.style.background = '#3b82f6'; // Đổi nút về màu xanh dương
+    }
+}
+
+// 2. HÀM XỬ LÝ ĐĂNG NHẬP
+function loginAccount() {
+    const username = document.getElementById('usernameInput').value.trim(); 
+    const password = document.getElementById('passwordInput').value;
+    
+    fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
+    .then(r => r.json()).then(d => { 
+        if(d.success) { 
+            localStorage.setItem('streamVibeActiveUser', d.username); 
+            localStorage.setItem('streamVibeActiveRole', d.role); 
+            
+            // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng nhập thành công
+            localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
+            
+            window.location.reload(); 
+        } else { 
+            document.getElementById('loginError').innerText = d.message; 
+            document.getElementById('loginError').style.display = 'block'; 
+        } 
+    });
+}
+
+// 3. HÀM XỬ LÝ ĐĂNG KÝ
 function registerAccount() {
-    const username = document.getElementById('usernameInput').value.trim(); const password = document.getElementById('passwordInput').value;
-    fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    .then(r => r.json()).then(d => { if(d.success) { localStorage.setItem('streamVibeActiveUser', username); localStorage.setItem('streamVibeActiveRole', d.role); window.location.reload(); } else { document.getElementById('loginError').innerText = d.message; document.getElementById('loginError').style.display = 'block'; } });
+    const username = document.getElementById('usernameInput').value.trim(); 
+    const password = document.getElementById('passwordInput').value;
+    const recoveryVal = document.getElementById('recoveryInput').value.trim();
+
+    if(!username || !password) {
+        document.getElementById('loginError').innerText = "Lỗi: Vui lòng nhập Tên đăng nhập và Mật khẩu!"; 
+        document.getElementById('loginError').style.display = 'block';
+        return;
+    }
+
+    if (!recoveryVal) {
+        document.getElementById('loginError').innerText = `Lỗi: Vui lòng nhập ${currentRecoveryMode === 'email' ? 'Email' : 'Số điện thoại'} để đăng ký!`; 
+        document.getElementById('loginError').style.display = 'block';
+        return;
+    }
+
+    let email = currentRecoveryMode === 'email' ? recoveryVal : '';
+    let phone = currentRecoveryMode === 'phone' ? recoveryVal : '';
+
+    fetch('/api/register', { 
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ username, password, email, phone }) 
+    })
+    .then(r => r.json()).then(d => { 
+        if(d.success) { 
+            localStorage.setItem('streamVibeActiveUser', username); 
+            localStorage.setItem('streamVibeActiveRole', d.role); 
+            
+            // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng ký thành công
+            localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
+            
+            window.location.reload(); 
+        } else { 
+            document.getElementById('loginError').innerText = d.message; 
+            document.getElementById('loginError').style.display = 'block'; 
+        } 
+    });
+}
+
+function submitForgotPassword() {
+    const username = document.getElementById('usernameInput').value.trim();
+    const recoveryVal = document.getElementById('recoveryInput').value.trim();
+
+    if(!username) {
+        document.getElementById('loginError').innerText = "Vui lòng nhập Tên đăng nhập!"; 
+        document.getElementById('loginError').style.display = 'block';
+        return;
+    }
+
+    if (!recoveryVal) {
+        document.getElementById('loginError').innerText = `Vui lòng nhập ${currentRecoveryMode === 'email' ? 'Email' : 'Số điện thoại'} để khôi phục!`; 
+        document.getElementById('loginError').style.display = 'block';
+        return;
+    }
+    
+    let email = currentRecoveryMode === 'email' ? recoveryVal : '';
+    let phone = currentRecoveryMode === 'phone' ? recoveryVal : '';
+
+    fetch('/api/forgot-password', { 
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ username, email, phone }) 
+    })
+    .then(r => r.json()).then(d => { 
+        if(d.success) { 
+            openAlert("Khôi phục thành công", `Mật khẩu của bạn là: ${d.password}\n(Trong thực tế, mật khẩu này sẽ được gửi ẩn qua Email/SMS của bạn)`, "success");
+            showLogin(); 
+        } else { 
+            document.getElementById('loginError').innerText = d.message; 
+            document.getElementById('loginError').style.display = 'block'; 
+        } 
+    });
 }
 
 function updateProfileUI(username) {
@@ -762,11 +1067,44 @@ function updateProfileUI(username) {
 function openSettingPanel(panelId) { document.getElementById('settingsMainMenu').style.display = 'none'; document.querySelectorAll('.setting-detail-panel').forEach(p => p.style.display = 'none'); document.getElementById(panelId).style.display = 'block'; }
 function closeSettingPanel() { document.querySelectorAll('.setting-detail-panel').forEach(p => p.style.display = 'none'); document.getElementById('settingsMainMenu').style.display = 'block'; }
 
-function loadSettingsInfo() {
+window.loadSettingsInfo = function() {
     if (!activeUser) return;
-    document.getElementById('settingUsername').innerText = activeUser; document.getElementById('profileEditName').innerText = activeUser.toUpperCase();
+    document.getElementById('settingUsername').innerText = activeUser; 
+    
+    let displayName = activeUser;
+    if (window.allUsersDB && window.allUsersDB.length > 0) {
+        const me = window.allUsersDB.find(u => u.username === activeUser);
+        if (me && me.display_name) displayName = me.display_name;
+    }
+    
+    if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
+    if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
+    if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
+    
     document.getElementById('profileEditAvatar').src = getAvatarUrl(activeUser);
-    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; document.getElementById('phoneInput').value = phones[activeUser] || "";
+    
+    // ĐỌC VÀ HIỂN THỊ ẢNH BÌA TỪ LOCALSTORAGE
+    let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
+    let userBanner = banners[activeUser];
+    if(userBanner) {
+        // Cập nhật ở trang Cài Đặt
+        if(document.getElementById('profileEditBannerPreview')) {
+            document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
+        }
+        
+        // CẬP NHẬT TRÀN TOÀN BỘ KHUNG Ở TRANG CHỦ
+        // Dùng querySelector để bắt chính xác class của vùng to nhất
+        const mainBanner = document.querySelector('.hero-banner-new');
+        if(mainBanner) {
+            // Giữ lại lớp gradient màu xanh tím để chữ trắng đè lên vẫn đọc được
+            mainBanner.style.backgroundImage = `linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(59, 130, 246, 0.6) 100%), url(${userBanner})`;
+            mainBanner.style.backgroundSize = 'cover';
+            mainBanner.style.backgroundPosition = 'center';
+        }
+    }
+    
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
+    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
 
 function handleChangePassword(e) { e.preventDefault(); openAlert("Tính năng bảo trì", "Chức năng đổi mật khẩu đang bảo trì.", "success"); }
@@ -786,7 +1124,6 @@ window.onload = () => {
             // CHẠY NGAY HÀM NÀY ĐỂ HIỆN THỊ TẤT CẢ SỐ ĐỎ KHI TRANG VỪA TẢI XONG
             loadContacts(); 
         });
-        
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('tab') === 'privateMessages' && urlParams.get('chatUser')) {
             const chatMenuBtn = document.querySelector(`.menu-item[data-tab="privateMessages"]`);
@@ -799,3 +1136,192 @@ window.onload = () => {
         }
     } else document.getElementById('loginModal').style.display = 'flex';
 };
+
+// --- HÀM MỞ BẢNG VÀ LƯU CÀI ĐẶT QUYỀN RIÊNG TƯ / TẢI VIDEO ---
+function openPrivacySetting() { 
+    document.getElementById('privacySettingModal').style.display = 'flex'; 
+}
+
+function openDownloadSetting() { 
+    document.getElementById('downloadSettingModal').style.display = 'flex'; 
+}
+
+function saveAccountSetting(type) {
+    const val = type === 'privacy' 
+        ? document.querySelector('input[name="videoPrivacy"]:checked').value
+        : document.querySelector('input[name="videoDownload"]:checked').value;
+    
+    fetch('/api/settings/update', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: localStorage.getItem('streamVibeActiveUser'), field: type, value: val })
+    }).then(r=>r.json()).then(d=>{
+        document.getElementById(type === 'privacy' ? 'privacySettingModal' : 'downloadSettingModal').style.display = 'none';
+        openAlert("Thành công", `Đã lưu cài đặt ${type === 'privacy' ? 'Riêng tư' : 'Tải video'}! Hệ thống sẽ cập nhật sau vài giây.`, "success");
+        setTimeout(() => window.location.reload(), 2000);
+    });
+}
+
+// --- HÀM XEM ẢNH ĐẠI DIỆN PHÓNG TO ---
+window.viewFullSizeAvatar = function() {
+    const avatarSrc = document.getElementById('profileEditAvatar').src;
+    if (avatarSrc && avatarSrc !== window.location.href) {
+        document.getElementById('fullSizeViewerImage').src = avatarSrc;
+        document.getElementById('imageViewerModal').style.display = 'flex';
+    }
+};
+
+window.closeImageViewer = function(event) {
+    if (event) {
+        event.stopPropagation();
+        // Bấm vào ảnh thì không tắt, chỉ tắt khi bấm ra ngoài viền đen hoặc bấm dấu X
+        if (event.target.id === 'fullSizeViewerImage') return; 
+    }
+    document.getElementById('imageViewerModal').style.display = 'none';
+    setTimeout(() => { document.getElementById('fullSizeViewerImage').src = ''; }, 300);
+};
+
+// CẬP NHẬT GIAO DIỆN HIỂN THỊ TÊN MỚI
+// --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ KÉO ẢNH BÌA + AVATAR RA TRANG CHỦ ---
+window.loadSettingsInfo = function() {
+    if (!activeUser) return;
+    
+    // 1. Lấy thông tin Tên hiển thị
+    document.getElementById('settingUsername').innerText = activeUser; 
+    let displayName = activeUser;
+    if (window.allUsersDB && window.allUsersDB.length > 0) {
+        const me = window.allUsersDB.find(u => u.username === activeUser);
+        if (me && me.display_name) displayName = me.display_name;
+    }
+    
+    // Cập nhật tên trong Cài Đặt
+    if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
+    if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
+    if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
+    
+    // 2. Cập nhật Avatar trong Cài đặt và Trang chủ
+    const myAvatar = getAvatarUrl(activeUser);
+    if (document.getElementById('profileEditAvatar')) document.getElementById('profileEditAvatar').src = myAvatar;
+    if (document.getElementById('dashboardBannerAvatar')) document.getElementById('dashboardBannerAvatar').src = myAvatar;
+    
+    // 3. Cập nhật Tên và Chức vụ ngoài Ảnh bìa trang chủ
+    if (document.getElementById('dashboardBannerName')) document.getElementById('dashboardBannerName').innerText = displayName;
+    
+    const bannerRole = document.getElementById('dashboardBannerRole');
+    if (bannerRole) {
+        const roleCode = getUserRole(activeUser);
+        bannerRole.innerText = roleCode === 'superadmin' ? '👑 Tổng Tư Lệnh' : (roleCode === 'admin' ? '🛡️ Quản trị viên' : (roleCode === 'statadmin' ? '📊 Quản lý Thống kê' : '👤 Thành viên'));
+    }
+    
+    // 4. ĐỌC VÀ HIỂN THỊ ẢNH BÌA TỪ LOCALSTORAGE
+    let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
+    let userBanner = banners[activeUser];
+    if(userBanner) {
+        if(document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
+        
+        const mainBanner = document.getElementById('mainDashboardBanner');
+        if(mainBanner) {
+            mainBanner.style.backgroundImage = `url(${userBanner})`;
+            mainBanner.style.backgroundSize = 'cover';
+            mainBanner.style.backgroundPosition = 'center';
+        }
+    }
+    
+    // 5. Số điện thoại
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
+    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
+}
+
+// HÀM XỬ LÝ NÚT BẤM ĐỔI TÊN
+window.submitChangeName = function() {
+    const newName = document.getElementById('newNameInput').value.trim();
+    if (!newName) {
+        openAlert("Lỗi", "Vui lòng nhập tên mới!", "error");
+        return;
+    }
+    
+    fetch('/api/settings/change-name', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: activeUser, newName: newName })
+    }).then(r => r.json()).then(d => {
+        if (d.success) {
+            openAlert("Thành công", "Đã đổi tên hiển thị! Mọi người sẽ thấy tên mới của bạn.", "success");
+            document.getElementById('newNameInput').value = '';
+            setTimeout(() => window.location.reload(), 2000); // Tải lại trang để áp dụng
+        } else {
+            openAlert("Chưa thể đổi tên", d.message, "error");
+        }
+    });
+}
+
+// --- HÀM TẢI VÀ THAY ĐỔI ẢNH BÌA (ĐÃ NÂNG CẤP) ---
+window.changeBanner = function(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const base64Image = e.target.result;
+            
+            // Lưu vào LocalStorage
+            let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
+            banners[activeUser] = base64Image;
+            localStorage.setItem('streamVibeBanners', JSON.stringify(banners));
+            
+            // Cập nhật giao diện bên trong Cài đặt
+            if(document.getElementById('profileEditBannerPreview')) {
+                document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${base64Image})`;
+            }
+            
+            // CẬP NHẬT TRÀN TOÀN BỘ KHUNG Ở TRANG CHỦ
+            const mainBanner = document.querySelector('.hero-banner-new');
+            if(mainBanner) {
+                // Giữ lại lớp gradient màu xanh tím
+                mainBanner.style.backgroundImage = `linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(59, 130, 246, 0.6) 100%), url(${base64Image})`;
+                mainBanner.style.backgroundSize = 'cover';
+                mainBanner.style.backgroundPosition = 'center';
+            }
+            
+            openAlert("Thành công", "Đã cập nhật ảnh bìa mới cho tài khoản của bạn!", "success");
+        }
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+// --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ KÉO ẢNH BÌA RA (ĐÃ NÂNG CẤP) ---
+window.loadSettingsInfo = function() {
+    if (!activeUser) return;
+    document.getElementById('settingUsername').innerText = activeUser; 
+    
+    let displayName = activeUser;
+    if (window.allUsersDB && window.allUsersDB.length > 0) {
+        const me = window.allUsersDB.find(u => u.username === activeUser);
+        if (me && me.display_name) displayName = me.display_name;
+    }
+    
+    if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
+    if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
+    if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
+    
+    document.getElementById('profileEditAvatar').src = getAvatarUrl(activeUser);
+    
+    // ĐỌC VÀ HIỂN THỊ ẢNH BÌA CỦA NGƯỜI NÀY
+    let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
+    let userBanner = banners[activeUser];
+    if(userBanner) {
+        if(document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
+        
+        const mainBanner = document.getElementById('mainDashboardBanner');
+        if(mainBanner) {
+            mainBanner.style.backgroundImage = `url(${userBanner})`;
+            mainBanner.style.backgroundSize = 'cover';
+            mainBanner.style.backgroundPosition = 'center';
+            
+            // Tự động ẩn chữ nếu có ảnh bìa
+            const h2 = mainBanner.querySelector('h2');
+            const p = mainBanner.querySelector('p');
+            if(h2) h2.style.display = 'none';
+            if(p) p.style.display = 'none';
+        }
+    }
+    
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
+    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
+}
