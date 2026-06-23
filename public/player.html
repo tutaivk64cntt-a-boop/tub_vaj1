@@ -1,109 +1,182 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StreamVibe Premium Cinematic Player</title>
-    
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="/socket.io/socket.io.js"></script>
 
     <link rel="stylesheet" href="player.css">
 </head>
+
 <body>
 
     <div id="universalConfirmModal" class="modal-overlay">
-        <div class="modal-box" style="padding: 40px 50px; text-align: center; max-width: 500px; background: #ffffff !important; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); border: none !important;">
-            <div class="confirm-icon" style="color: #ef4444; font-size: 60px; margin-bottom: 20px;"><i class="fa-solid fa-triangle-exclamation"></i></div>
-            <div class="confirm-title" id="confirmTitle" style="color: #0f172a; font-size: 28px; font-weight: 800; margin-bottom: 12px;">Xác nhận</div>
-            <div class="confirm-text" id="confirmMessage" style="color: #475569; font-size: 16px; margin-bottom: 35px;">Bạn có chắc chắn không?</div>
+        <div class="modal-box"
+            style="padding: 40px 50px; text-align: center; max-width: 500px; background: #ffffff !important; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); border: none !important;">
+            <div class="confirm-icon" style="color: #ef4444; font-size: 60px; margin-bottom: 20px;"><i
+                    class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="confirm-title" id="confirmTitle"
+                style="color: #0f172a; font-size: 28px; font-weight: 800; margin-bottom: 12px;">Xác nhận</div>
+            <div class="confirm-text" id="confirmMessage" style="color: #475569; font-size: 16px; margin-bottom: 35px;">
+                Bạn có chắc chắn không?</div>
             <div class="confirm-actions" style="display: flex; gap: 15px; justify-content: center;">
-                <button style="flex: 1; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-size: 16px; padding: 14px 20px; border-radius: 12px; font-weight: 600; cursor: pointer;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'" onclick="closeConfirm()">Hủy bỏ</button>
-                <button style="flex: 1; background: #ef4444; color: white; border: none; font-size: 16px; padding: 14px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);" onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'" onclick="executeConfirmAction()">Đồng ý</button>
+                <button
+                    style="flex: 1; background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; font-size: 16px; padding: 14px 20px; border-radius: 12px; font-weight: 600; cursor: pointer;"
+                    onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'"
+                    onclick="closeConfirm()">Hủy bỏ</button>
+                <button
+                    style="flex: 1; background: #ef4444; color: white; border: none; font-size: 16px; padding: 14px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);"
+                    onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'"
+                    onclick="executeConfirmAction()">Đồng ý</button>
             </div>
+        </div>
+    </div>
+    <!-- Modal chia sẻ video  -->
+     <div id="universalAlertModal" class="modal-overlay">
+        <div class="modal-box"
+            style="padding: 40px 50px; text-align: center; max-width: 500px; background: #ffffff !important; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); border: none !important;">
+            <div class="confirm-icon" id="alertIcon" style="font-size: 60px; margin-bottom: 20px;">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <div class="confirm-title" id="alertTitle"
+                style="color: #0f172a; font-size: 28px; font-weight: 800; margin-bottom: 12px;">Thông báo</div>
+            <div class="confirm-text" id="alertMessage" style="color: #475569; font-size: 16px; margin-bottom: 35px;">
+                Nội dung thông báo...</div>
+            <button
+                style="width: 100%; justify-content: center; font-size: 16px; padding: 14px 20px; border-radius: 12px; border: none; background: #3b82f6; color: white; cursor: pointer; font-weight: 600;"
+                onclick="closeAlert()">Đóng</button>
         </div>
     </div>
 
     <div id="shareVideoModal" class="modal-overlay">
         <div class="modal-box" style="max-width: 460px; padding: 30px;">
             <h2 style="color: #fff; font-size: 22px; margin-bottom: 5px;">Chia sẻ Video</h2>
-            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Chia sẻ luồng video này đến bạn bè và các mạng xã hội.</p>
-            
-            <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
-                <div onclick="shareToApp('facebook')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                    <div style="width: 48px; height: 44px; background: #1877f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-facebook-f"></i></div>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Chia sẻ luồng video này đến
+                bạn bè và các mạng xã hội.</p>
+
+            <div
+                style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 25px; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.03);">
+                <div onclick="shareToApp('facebook')"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div
+                        style="width: 48px; height: 44px; background: #1877f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;">
+                        <i class="fa-brands fa-facebook-f"></i>
+                    </div>
                     <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Facebook</span>
                 </div>
-                <div onclick="shareToApp('messenger')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                    <div style="width: 48px; height: 44px; background: linear-gradient(135deg, #00c6ff, #0072ff, #f355a0); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-facebook-messenger"></i></div>
+                <div onclick="shareToApp('messenger')"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div
+                        style="width: 48px; height: 44px; background: linear-gradient(135deg, #00c6ff, #0072ff, #f355a0); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;">
+                        <i class="fa-brands fa-facebook-messenger"></i>
+                    </div>
                     <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Messenger</span>
                 </div>
-                <div onclick="shareToApp('zalo')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                    <div style="width: 48px; height: 44px; background: #0068ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color:#fff; font-weight: 900; font-family: sans-serif;">ZALO</div>
+                <div onclick="shareToApp('zalo')"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div
+                        style="width: 48px; height: 44px; background: #0068ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; color:#fff; font-weight: 900; font-family: sans-serif;">
+                        ZALO</div>
                     <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Zalo Web</span>
                 </div>
-                <div onclick="shareToApp('telegram')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                    <div style="width: 48px; height: 44px; background: #229ed9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-brands fa-telegram"></i></div>
+                <div onclick="shareToApp('telegram')"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div
+                        style="width: 48px; height: 44px; background: #229ed9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;">
+                        <i class="fa-brands fa-telegram"></i>
+                    </div>
                     <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Telegram</span>
                 </div>
-                <div onclick="shareToApp('gmail')" style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                    <div style="width: 48px; height: 44px; background: #ea4335; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;"><i class="fa-regular fa-envelope"></i></div>
+                <div onclick="shareToApp('gmail')"
+                    style="display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                    <div
+                        style="width: 48px; height: 44px; background: #ea4335; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; color:#fff;">
+                        <i class="fa-regular fa-envelope"></i>
+                    </div>
                     <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;">Gmail</span>
                 </div>
             </div>
 
-            <div style="display: flex; gap: 10px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); padding: 8px 8px 8px 16px; border-radius: 10px; align-items: center; margin-bottom: 20px;">
-                <input type="text" id="shareLinkURLInput" readonly style="background:transparent; border:none; width:100%; color:#60a5fa; font-size:13px; font-weight:600; padding:0; margin-bottom:0; outline:none; text-overflow: ellipsis;">
-                <button class="btn-primary" style="padding: 10px 16px; font-size: 12px; white-space: nowrap; flex-shrink: 0;" onclick="copyShareLinkDirectly()"><i class="fa-regular fa-copy"></i> Sao chép</button>
+            <div
+                style="display: flex; gap: 10px; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); padding: 8px 8px 8px 16px; border-radius: 10px; align-items: center; margin-bottom: 20px;">
+                <input type="text" id="shareLinkURLInput" readonly
+                    style="background:transparent; border:none; width:100%; color:#60a5fa; font-size:13px; font-weight:600; padding:0; margin-bottom:0; outline:none; text-overflow: ellipsis;">
+                <button class="btn-primary"
+                    style="padding: 10px 16px; font-size: 12px; white-space: nowrap; flex-shrink: 0;"
+                    onclick="copyShareLinkDirectly()"><i class="fa-regular fa-copy"></i> Sao chép</button>
             </div>
 
-            <button class="btn-cancel" style="width: 100%; justify-content: center;" onclick="document.getElementById('shareVideoModal').style.display='none'">Đóng lại</button>
+            <button class="btn-cancel" style="width: 100%; justify-content: center;"
+                onclick="document.getElementById('shareVideoModal').style.display='none'">Đóng lại</button>
         </div>
     </div>
 
     <div id="editVideoModal" class="modal-overlay">
         <div class="modal-box">
             <h2 style="text-align: center; margin-bottom: 10px; color: #fff;">Đổi tên Video</h2>
-            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Nhập tên mới cho video của bạn.</p>
+            <p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Nhập tên
+                mới cho video của bạn.</p>
             <form onsubmit="submitEditVideo(event)">
                 <input type="hidden" id="editVideoId">
-                <input type="text" id="editVideoTitleInput" class="settings-input" placeholder="Ví dụ: Du lịch Sơn La..." required autocomplete="off">
+                <input type="text" id="editVideoTitleInput" class="settings-input"
+                    placeholder="Ví dụ: Du lịch Sơn La..." required autocomplete="off">
                 <div style="display: flex; gap: 10px; margin-top: 10px;">
-                    <button type="button" class="btn-cancel" onclick="document.getElementById('editVideoModal').style.display='none'">Hủy bỏ</button>
-                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;"><i class="fa-solid fa-check"></i> Lưu thay đổi</button>
+                    <button type="button" class="btn-cancel"
+                        onclick="document.getElementById('editVideoModal').style.display='none'">Hủy bỏ</button>
+                    <button type="submit" class="btn-primary" style="flex: 1; justify-content: center;"><i
+                            class="fa-solid fa-check"></i> Lưu thay đổi</button>
                 </div>
             </form>
         </div>
     </div>
 
     <div id="userProfileModal" class="modal-overlay">
-        <div class="modal-box" style="padding: 30px; max-width: 1000px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; position: relative;">
-            
+        <div class="modal-box"
+            style="padding: 30px; max-width: 1000px; max-height: 90vh; overflow-y: auto; overflow-x: hidden; position: relative;">
+
             <button class="modal-close-top-left" onclick="closeUserProfile()">
                 <i class="fa-solid fa-arrow-left"></i> Đóng
             </button>
 
             <div class="user-view-profile" style="margin-bottom: 25px;">
-                
-                <img id="viewProfileAvatar" src="" class="user-view-avatar" alt="Avatar" onclick="openImageViewer(this.src)" title="Bấm để phóng to ảnh" onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'" style="width: 130px; height: 130px; cursor: zoom-in; border: 3px solid rgba(255,255,255,0.2);">
-                
+
+                <img id="viewProfileAvatar" src="" class="user-view-avatar" alt="Avatar"
+                    onclick="openImageViewer(this.src)" title="Bấm để phóng to ảnh"
+                    onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'"
+                    style="width: 130px; height: 130px; cursor: zoom-in; border: 3px solid rgba(255,255,255,0.2);">
+
                 <div id="viewProfileName" class="user-view-name" style="font-size: 26px;">Tên tài khoản</div>
-                <div id="viewProfileRole" class="user-view-role" style="font-size: 13px; padding: 4px 16px; border-radius: 20px;">Thành viên hệ thống</div>
-                
+                <div id="viewProfileRole" class="user-view-role"
+                    style="font-size: 13px; padding: 4px 16px; border-radius: 20px;">Thành viên hệ thống</div>
+
                 <div style="display: flex; gap: 20px; align-items: center; margin-top: 15px;">
-                    <div style="text-align: center; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 20px;">
-                        <span id="profileFollowerCount" style="font-weight: bold; font-size: 18px; color: #fff;">0</span><br>
+                    <div
+                        style="text-align: center; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 20px;">
+                        <span id="profileFollowerCount"
+                            style="font-weight: bold; font-size: 18px; color: #fff;">0</span><br>
                         <span style="font-size: 12px; color: var(--text-secondary);">Người theo dõi</span>
                     </div>
-                    <button id="btnFollowUser" class="btn-primary" onclick="toggleFollow()"><i class="fa-solid fa-user-plus"></i> Theo dõi</button>
-                    <button id="btnMessageUser" class="btn-secondary" style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;" onclick="goToPrivateChat()"><i class="fa-solid fa-comment-dots"></i> Nhắn tin</button>
+                    <button id="btnFollowUser" class="btn-primary" onclick="toggleFollow()"><i
+                            class="fa-solid fa-user-plus"></i> Theo dõi</button>
+                    <button id="btnMessageUser" class="btn-secondary"
+                        style="background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.1); padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s;"
+                        onclick="goToPrivateChat()"><i class="fa-solid fa-comment-dots"></i> Nhắn tin</button>
                 </div>
             </div>
-            
+
             <div style="margin-bottom: 10px;">
-                <h3 style="color: #3b82f6; font-size: 20px; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;"><i class="fa-solid fa-video"></i> Các video (<span id="profileVideoCount">0</span>)</h3>
-                <div id="profileVideoGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; max-height: 400px; overflow-y: auto; padding-right: 5px;"></div>
+                <h3
+                    style="color: #3b82f6; font-size: 20px; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    <i class="fa-solid fa-video"></i> Các video (<span id="profileVideoCount">0</span>)
+                </h3>
+                <div id="profileVideoGrid"
+                    style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; max-height: 400px; overflow-y: auto; padding-right: 5px;">
+                </div>
             </div>
         </div>
     </div>
@@ -113,9 +186,11 @@
     </div>
 
     <div class="header">
-    <a href="/" class="back-btn" style="background: #3b82f6; color: #fff; border-color: #3b82f6;"><i class="fa-solid fa-arrow-left"></i> Quay lại</a>
-    <div class="logo"><i class="fa-solid fa-play" style="color:#3b82f6;"></i> Stream<span>Vibe Engineering</span></div>
-</div>
+        <a href="/" class="back-btn" style="background: #3b82f6; color: #fff; border-color: #3b82f6;"><i
+                class="fa-solid fa-arrow-left"></i> Quay lại</a>
+        <div class="logo"><i class="fa-solid fa-play" style="color:#3b82f6;"></i> Stream<span>Vibe Engineering</span>
+        </div>
+    </div>
 
     <div class="container">
         <div class="video-section" id="mainVideoSection">
@@ -132,64 +207,83 @@
                     <button class="react-btn" onclick="sendReaction('❤️')">❤️</button>
                 </div>
                 <form class="danmaku-form" onsubmit="sendCustomDanmaku(event)">
-                    <input type="text" id="danmakuInput" class="danmaku-input" placeholder="Nhập bình luận để chữ bay và lưu vào nhóm chat..." autocomplete="off">
+                    <input type="text" id="danmakuInput" class="danmaku-input"
+                        placeholder="Nhập bình luận để chữ bay và lưu vào nhóm chat..." autocomplete="off">
                     <button type="submit" class="btn-send"><i class="fa-solid fa-paper-plane"></i> Gửi</button>
                 </form>
             </div>
 
-            <div class="glass-box" style="padding: 20px;">
-                <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
-                    <i class="fa-solid fa-comments" style="color: var(--accent-blue);"></i> Trò chuyện trực tiếp (Live Chat)
-                </div>
-                <div id="liveChatBox" class="live-chat-box"></div>
-            </div>
-
+            <!-- PHẦN THÔNG TIN VIDEO VÀ TÁC GIẢ, Thả tin xem chung-->
             <div class="glass-box">
-                <div class="v-meta-row">
+                <!-- Thêm flex-wrap để tự xuống dòng nếu màn hình nhỏ -->
+                <div class="v-meta-row" style="flex-wrap: wrap; gap: 15px;">
                     <div class="uploader-info">
-                        <img id="uploaderAvatar" src="" alt="Avatar" onclick="openUserProfile(ownerName)" onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'">
+                        <img id="uploaderAvatar" src="" alt="Avatar" onclick="openUserProfile(ownerName)"
+                            onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'">
                         <div>
-                            <h1 class="v-title" id="videoTitle" style="font-size: 22px; margin-bottom: 4px;">Đang tải thông tin video...</h1>
-                            <div class="uploader-name" id="uploaderName" style="color: #cbd5e1; font-weight: 500; font-size: 14px;" onclick="openUserProfile(ownerName)">Đang tải...</div>
+                            <h1 class="v-title" id="videoTitle" style="font-size: 22px; margin-bottom: 4px;">Đang tải
+                                thông tin video...</h1>
+                            <div class="uploader-name" id="uploaderName"
+                                style="color: #cbd5e1; font-weight: 500; font-size: 14px;"
+                                onclick="openUserProfile(ownerName)">Đang tải...</div>
                         </div>
                     </div>
-                    
-                    <div style="display:flex; gap:10px; align-items: center; position: relative;">
-                        
+
+                    <!-- Thêm flex-wrap và white-space: nowrap để các nút không bị bóp méo chữ -->
+                    <div style="display:flex; gap:10px; align-items: center; position: relative; flex-wrap: wrap;">
+
                         <div style="position: relative;">
-                            <button id="qualityButton" class="btn-like" onclick="toggleQualityMenu(event)" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">
-                                <i class="fa-solid fa-gear" style="color: #f59e0b; font-size: 16px;"></i> 
+                            <button id="qualityButton" class="btn-like" onclick="toggleQualityMenu(event)"
+                                style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); white-space: nowrap;">
+                                <i class="fa-solid fa-gear" style="color: #f59e0b; font-size: 16px;"></i>
                                 <span id="qualityText">1080p</span>
                             </button>
-                            
-                            <div id="qualityDropdown" style="display: none; position: absolute; bottom: 120%; left: 0; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px); min-width: 150px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); flex-direction: column; overflow: hidden; z-index: 50;">
+
+                            <div id="qualityDropdown"
+                                style="display: none; position: absolute; bottom: 120%; left: 0; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px); min-width: 150px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.8); flex-direction: column; overflow: hidden; z-index: 50;">
                                 <div class="quality-item" onclick="changeQuality('Auto')">Tự động (Auto)</div>
-                                <div class="quality-item" onclick="changeQuality('2160p')" style="color: #fbbf24; font-weight: 800;">2160p (4K) <i class="fa-solid fa-crown" style="font-size: 12px;"></i></div>
-                                <div class="quality-item" onclick="changeQuality('1440p')" style="color: #a855f7; font-weight: 800;">1440p (2K)</div>
-                                <div class="quality-item" onclick="changeQuality('1080p')" style="color: #3b82f6;">1080p (FHD)</div>
+                                <div class="quality-item" onclick="changeQuality('2160p')"
+                                    style="color: #fbbf24; font-weight: 800;">2160p (4K) <i class="fa-solid fa-crown"
+                                        style="font-size: 12px;"></i></div>
+                                <div class="quality-item" onclick="changeQuality('1440p')"
+                                    style="color: #a855f7; font-weight: 800;">1440p (2K)</div>
+                                <div class="quality-item" onclick="changeQuality('1080p')" style="color: #3b82f6;">1080p
+                                    (FHD)</div>
                                 <div class="quality-item" onclick="changeQuality('720p')">720p (HD)</div>
                                 <div class="quality-item" onclick="changeQuality('480p')">480p (SD)</div>
                             </div>
                         </div>
 
-                        <button id="downloadButton" class="btn-like" onclick="downloadVideoPlayer()" style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3);">
-                            <i class="fa-solid fa-download" style="color: #38bdf8; font-size: 16px;"></i> 
+                        <button id="downloadButton" class="btn-like" onclick="downloadVideoPlayer()"
+                            style="color: #38bdf8; border-color: rgba(56, 189, 248, 0.3); white-space: nowrap;">
+                            <i class="fa-solid fa-download" style="color: #38bdf8; font-size: 16px;"></i>
                             <span>Tải về</span>
                         </button>
 
-                        <button id="likeButton" class="btn-like" onclick="toggleLike()">
-                            <i class="fa-regular fa-heart" id="likeIcon" style="color: #f43f5e; font-size: 16px;"></i> 
+                        <button id="likeButton" class="btn-like" onclick="toggleLike()" style="white-space: nowrap;">
+                            <i class="fa-regular fa-heart" id="likeIcon" style="color: #f43f5e; font-size: 16px;"></i>
                             <span id="likeText">Thích</span>
                         </button>
-                        
-                        <div class="stat-item" style="background:rgba(255,255,255,0.05); padding:8px 15px; border-radius:8px; font-size:13px; display: flex; align-items: center; gap: 6px;">
-                            <i class="fa-solid fa-eye" style="color:var(--accent-green);"></i> 
-                            <span id="viewCount">0 lượt xem độc nhất</span>
+
+                        <div class="stat-item"
+                            style="background:rgba(255,255,255,0.05); padding:8px 15px; border-radius:8px; font-size:13px; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                            <i class="fa-solid fa-eye" style="color: #10b981;"></i> <span id="videoViews">0 lượt
+                                xem</span>
+
+                            <span style="color: #64748b; font-size:10px;">•</span>
+
+                            <i class="fa-solid fa-heart" style="color: #f43f5e;"></i> <span id="totalLikeCount">0 lượt
+                                thích</span>
+
+                            <span style="color: #64748b; font-size:10px;">•</span>
+
+                            Tải lên: <span id="videoDate" style="color: #94a3b8; font-weight:normal;">...</span>
                         </div>
                     </div>
-                </div>
+                </div> <!-- ĐÓNG THẺ V-META-ROW Ở ĐÂY ĐỂ CHẶN HÀNG -->
 
-                <div class="sync-room-box">
+                <!-- KHUNG RẠP CHIẾU PHIM SẼ ĐƯỢC ĐẨY XUỐNG HÀNG DƯỚI RỘNG RÃI -->
+                <div class="sync-room-box" style="margin-top: 0;">
                     <div class="sync-header">
                         <div style="display:flex; align-items:center; gap:10px;">
                             <i class="fa-solid fa-users" style="color:var(--accent-purple); font-size:18px;"></i>
@@ -197,61 +291,108 @@
                         </div>
                         <span class="sync-badge" id="syncStatusBadge">Chế độ đơn lẻ</span>
                     </div>
-                    <p style="font-size:13px; color:var(--text-sub);">Bật tính năng đồng bộ để điều khiển trình phát video (Phát/Dừng/Tua) đồng thời cho mọi thành viên trong phòng chiếu chung.</p>
-                    <div class="sync-actions">
-                        <button class="btn-send" style="background:var(--accent-purple);" id="btnCreateRoom" onclick="toggleCinemaRoom()"><i class="fa-solid fa-circle-plus"></i> Khởi tạo phòng chiếu chung</button>
-                        <span id="roomCodeDisplay" style="font-weight:700; align-self:center; margin-left:10px; font-size:15px; color:var(--accent-purple);"></span>
+                    <p style="font-size:13px; color:var(--text-sub);">Bật tính năng đồng bộ để điều khiển trình phát
+                        video (Phát/Dừng/Tua) đồng thời cho mọi thành viên trong phòng chiếu chung.</p>
+                    <div class="sync-actions" style="flex-direction: column; gap: 10px; align-items: flex-start;">
+                        <div style="display: flex; gap: 10px; width: 100%; flex-wrap: wrap;">
+
+                            <input type="text" id="joinRoomCodeInput"
+                                placeholder="Nhập MÃ PHÒNG (VD: ROOM-1234) vào đây..."
+                                style="flex: 1; min-width: 200px; padding: 12px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.5); color: #fff; outline: none; font-size: 14px;">
+
+                            <div style="display: flex; gap: 10px;">
+                                <button id="btnJoinRoom" onclick="joinCinemaRoom()"
+                                    style="padding: 12px 20px; border-radius: 8px; border: none; background: #3b82f6; color: #fff; font-weight: bold; cursor: pointer; white-space: nowrap; transition: 0.2s; box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);">
+                                    <i class="fa-solid fa-right-to-bracket"></i> Vào Phòng
+                                </button>
+
+                                <button id="btnCreateRoom" onclick="createCinemaRoom()"
+                                    style="padding: 12px 20px; border-radius: 8px; border: none; background: #a855f7; color: #fff; font-weight: bold; cursor: pointer; white-space: nowrap; transition: 0.2s; box-shadow: 0 4px 10px rgba(168, 85, 247, 0.3);">
+                                    <i class="fa-solid fa-plus"></i> Tạo Phòng
+                                </button>
+                            </div>
+                        </div>
+
+                        <span id="roomCodeDisplay"
+                            style="font-weight:700; font-size:15px; color:var(--accent-purple);"></span>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="radar-section" id="hlsRadarSection">
+            <div class="glass-box" style="padding: 20px;">
+                <div
+                    style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                    <i class="fa-solid fa-comments" style="color: var(--accent-blue);"></i> Trò chuyện trực tiếp (Live
+                    Chat)
+                </div>
+                <div id="liveChatBox" class="live-chat-box"></div>
+            </div>
+
             
-            <div class="glass-box">
-                <div class="radar-title"><i class="fa-solid fa-circle-nodes" style="color:var(--accent-blue);"></i> P2P Mesh Network Telemetry</div>
-                
-                <div class="p2p-graph-container">
-                    <div class="status-label" style="text-align:center; margin-bottom:10px;">Sơ đồ phân phối dữ liệu (.ts chunk)</div>
-                    <div class="node-map">
-                        <div class="node-circle">M.Chủ</div>
-                        <div class="node-line-arrow"></div>
-                        <div class="node-circle active">Bạn</div>
-                        <div class="node-circle active" id="peerNode" style="border-color:var(--text-secondary);">Peer B</div>
+
+            <div class="radar-section" id="hlsRadarSection">
+
+                <div class="glass-box">
+                    <div class="radar-title"><i class="fa-solid fa-circle-nodes" style="color:var(--accent-blue);"></i>
+                        P2P
+                        Mesh Network Telemetry</div>
+
+                    <div class="p2p-graph-container">
+                        <div class="status-label" style="text-align:center; margin-bottom:10px;">Sơ đồ phân phối dữ liệu
+                            (.ts chunk)</div>
+                        <div class="node-map">
+                            <div class="node-circle">M.Chủ</div>
+                            <div class="node-line-arrow"></div>
+                            <div class="node-circle active">Bạn</div>
+                            <div class="node-circle active" id="peerNode" style="border-color:var(--text-secondary);">
+                                Peer B
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
+                        <div class="status-box">
+                            <div class="status-label">Tải từ Server</div>
+                            <div class="status-value" style="color:var(--accent-blue);" id="serverLoadText">0 KB/s</div>
+                        </div>
+                        <div class="status-box">
+                            <div class="status-label">Chia sẻ cho Peer B</div>
+                            <div class="status-value" style="color:var(--accent-green);" id="p2pLoadText">0 KB/s</div>
+                        </div>
+                    </div>
+
+                    <div class="status-label">Nhật ký băm tải phân đoạn HLS</div>
+                    <div class="terminal-box" id="terminalLog"></div>
+                    <div class="chunks-grid" id="chunksGrid"></div>
+                </div>
+
+                <div class="glass-box ai-panel">
+                    <div class="radar-title" style="border-color:rgba(16,185,129,0.1); margin-bottom:15px;"><i
+                            class="fa-solid fa-brain" style="color:var(--accent-green);"></i> AI Predictive Network
+                        Engine
+                    </div>
+                    <p style="font-size:12px; color:var(--text-sub); line-height:1.5;">Thuật toán AI liên tục giám sát
+                        chất
+                        lượng mạng của Client để điều chỉnh trước luồng dữ liệu, ngăn ngừa tình trạng dừng hình
+                        (Buffering)
+                        trước khi nó xảy ra.</p>
+
+                    <div class="ai-status-indicator">
+                        <i class="fa-solid fa-robot"
+                            style="color:var(--accent-green); font-size:18px; animation: pulse 2s infinite;"></i>
+                        <div>
+                            <div style="font-weight:700; color:#fff;" id="aiDecisionTitle">AI: Trạng thái mạng lý tưởng
+                            </div>
+                            <div style="font-size:11px; color:var(--accent-green); margin-top:2px;" id="aiDecisionDesc">
+                                Đang
+                                tải trước (Pre-fetch) phân đoạn 1080p gốc...</div>
+                        </div>
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
-                    <div class="status-box">
-                        <div class="status-label">Tải từ Server</div>
-                        <div class="status-value" style="color:var(--accent-blue);" id="serverLoadText">0 KB/s</div>
-                    </div>
-                    <div class="status-box">
-                        <div class="status-label">Chia sẻ cho Peer B</div>
-                        <div class="status-value" style="color:var(--accent-green);" id="p2pLoadText">0 KB/s</div>
-                    </div>
-                </div>
-
-                <div class="status-label">Nhật ký băm tải phân đoạn HLS</div>
-                <div class="terminal-box" id="terminalLog"></div>
-                <div class="chunks-grid" id="chunksGrid"></div>
             </div>
-
-            <div class="glass-box ai-panel">
-                <div class="radar-title" style="border-color:rgba(16,185,129,0.1); margin-bottom:15px;"><i class="fa-solid fa-brain" style="color:var(--accent-green);"></i> AI Predictive Network Engine</div>
-                <p style="font-size:12px; color:var(--text-sub); line-height:1.5;">Thuật toán AI liên tục giám sát chất lượng mạng của Client để điều chỉnh trước luồng dữ liệu, ngăn ngừa tình trạng dừng hình (Buffering) trước khi nó xảy ra.</p>
-                
-                <div class="ai-status-indicator">
-                    <i class="fa-solid fa-robot" style="color:var(--accent-green); font-size:18px; animation: pulse 2s infinite;"></i>
-                    <div>
-                        <div style="font-weight:700; color:#fff;" id="aiDecisionTitle">AI: Trạng thái mạng lý tưởng</div>
-                        <div style="font-size:11px; color:var(--accent-green); margin-top:2px;" id="aiDecisionDesc">Đang tải trước (Pre-fetch) phân đoạn 1080p gốc...</div>
-                    </div>
-                </div>
-            </div>
-
         </div>
-    </div>
-    <script src="player.js"></script>
+        <script src="player.js?v=999"></script>
 </body>
+
 </html>

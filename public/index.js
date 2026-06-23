@@ -1,12 +1,12 @@
 window.globalPermissions = {};
-fetch('/api/user-permissions').then(r=>r.json()).then(d => { window.globalPermissions = d; });
+fetch('/api/user-permissions').then(r => r.json()).then(d => { window.globalPermissions = d; });
 
-const socket = io(); 
+const socket = io();
 
-let pendingAction = null; 
+let pendingAction = null;
 let pendingData = null;
 window.allUsersDB = [];
-let currentShareLinkGlobal = ""; 
+let currentShareLinkGlobal = "";
 let currentProfileView = '';
 let currentChatTarget = null;
 
@@ -42,15 +42,15 @@ function getAvatarUrl(username) {
 function changeAvatar(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const base64Image = e.target.result;
             let avatars = JSON.parse(localStorage.getItem('streamVibeAvatars')) || {};
             avatars[activeUser] = base64Image;
             localStorage.setItem('streamVibeAvatars', JSON.stringify(avatars));
-            
+
             document.getElementById('profileEditAvatar').src = base64Image;
             updateProfileUI(activeUser);
-            loadVideoLists(); 
+            loadVideoLists();
             openAlert("Thành công", "Đã cập nhật ảnh đại diện mới!", "success");
         }
         reader.readAsDataURL(input.files[0]);
@@ -65,12 +65,12 @@ async function openUserProfile(username) {
     currentProfileView = username;
     document.getElementById('viewProfileAvatar').src = getAvatarUrl(username);
     document.getElementById('viewProfileName').innerHTML = `${username} ${username.toLowerCase() === 'lam' ? '<i class="fa-solid fa-circle-check" style="color: #3b82f6; font-size: 14px;"></i>' : ''}`;
-    
+
     let userRole = getUserRole(username);
     let roleStr = "Thành viên hệ thống";
     let roleColor = "var(--text-secondary)";
     let bgRoleColor = "rgba(255,255,255,0.05)";
-    
+
     if (userRole === 'superadmin') {
         roleStr = "Tổng Tư Lệnh (Super Admin)";
         roleColor = "#f59e0b";
@@ -84,13 +84,13 @@ async function openUserProfile(username) {
         roleColor = "#10b981";
         bgRoleColor = "rgba(16, 185, 129, 0.1)";
     }
-    
+
     const roleEl = document.getElementById('viewProfileRole');
     if (roleEl) {
         roleEl.innerText = roleStr;
         roleEl.style.color = roleColor;
         roleEl.style.background = bgRoleColor;
-        
+
         // Ẩn mác nếu là người dùng bình thường
         if (userRole === 'user') {
             roleEl.style.display = 'none';
@@ -100,13 +100,15 @@ async function openUserProfile(username) {
     }
     const btnFollow = document.getElementById('btnFollowUser');
     const btnMsg = document.getElementById('btnMessageUser');
-    
+
     if (username === activeUser) {
-        btnFollow.style.display = 'none'; 
+        btnFollow.style.display = 'none';
         btnMsg.style.display = 'none';
     } else {
-        btnFollow.style.display = 'inline-flex'; 
+        btnFollow.style.display = 'inline-flex';
         btnMsg.style.display = 'inline-flex';
+        btnFollow.onclick = toggleFollow;
+        btnMsg.onclick = openPrivateChatFromProfile;
     }
 
     const videoGrid = document.getElementById('profileVideoGrid');
@@ -119,7 +121,7 @@ async function openUserProfile(username) {
     try {
         const res = await fetch(`/api/users/${username}/profile?viewer=${activeUser}`);
         const data = await res.json();
-        
+
         if (data.success) {
             document.getElementById('profileFollowerCount').innerText = data.followerCount;
             if (data.isFollowing) {
@@ -140,7 +142,7 @@ async function openUserProfile(username) {
                     const title = video.title || 'Video không tên';
                     const views = Array.isArray(video.views) ? video.views.length : 0;
                     const thumbBg = `url('/videos/${id}/thumbnail.jpg') center top / cover no-repeat`;
-                    
+
                     const card = document.createElement('div');
                     card.style.background = 'rgba(15, 23, 42, 0.5)';
                     card.style.border = '1px solid rgba(255,255,255,0.05)';
@@ -148,10 +150,10 @@ async function openUserProfile(username) {
                     card.style.padding = '12px';
                     card.style.cursor = 'pointer';
                     card.style.transition = '0.2s';
-                    card.onmouseover = () => { card.style.borderColor = 'var(--accent-primary)'; card.style.transform = 'translateY(-4px)'; card.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)';};
-                    card.onmouseout = () => { card.style.borderColor = 'rgba(255,255,255,0.05)'; card.style.transform = 'translateY(0)'; card.style.boxShadow = 'none';};
+                    card.onmouseover = () => { card.style.borderColor = 'var(--accent-primary)'; card.style.transform = 'translateY(-4px)'; card.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)'; };
+                    card.onmouseout = () => { card.style.borderColor = 'rgba(255,255,255,0.05)'; card.style.transform = 'translateY(0)'; card.style.boxShadow = 'none'; };
                     card.onclick = () => { window.location.href = '/player.html?id=' + id; };
-                    
+
                     card.innerHTML = `
                         <div style="width: 100%; aspect-ratio: 16/9; border-radius: 8px; background: ${thumbBg}; margin-bottom: 12px;"></div>
                         <div style="font-size: 15px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${title}</div>
@@ -161,20 +163,22 @@ async function openUserProfile(username) {
                 });
             }
         }
-    } catch (err) {}
+    } catch (err) { }
 }
 
-function closeUserProfile() { 
-    document.getElementById('userProfileModal').style.display = 'none'; 
+function closeUserProfile() {
+    document.getElementById('userProfileModal').style.display = 'none';
 }
 
-async function toggleFollow() {
+window.toggleFollow = async function() {
     try {
-        const res = await fetch(`/api/users/${currentProfileView}/follow`, {
+        // Đã bọc encodeURIComponent để chống gãy Link khi tên có dấu cách
+        const res = await fetch(`/api/users/${encodeURIComponent(currentProfileView)}/follow`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ currentUser: activeUser })
         });
         const data = await res.json();
+        
         if (data.success) {
             document.getElementById('profileFollowerCount').innerText = data.followerCount;
             const btnFollow = document.getElementById('btnFollowUser');
@@ -185,8 +189,12 @@ async function toggleFollow() {
                 btnFollow.innerHTML = `<i class="fa-solid fa-user-plus"></i> Theo dõi`;
                 btnFollow.style.background = 'var(--accent-primary)';
             }
+        } else {
+            openAlert("Lỗi", data.message || "Không thể theo dõi", "error");
         }
-    } catch(e) {}
+    } catch(e) {
+        openAlert("Lỗi mạng", "Không kết nối được tới máy chủ", "error");
+    }
 }
 
 function openPrivateChatFromProfile() {
@@ -195,25 +203,25 @@ function openPrivateChatFromProfile() {
     openChatWithUser(currentProfileView);
 }
 
-document.querySelectorAll('.menu-item').forEach(item => { 
-    item.addEventListener('click', () => { 
-        document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active')); item.classList.add('active'); 
-        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active')); 
+document.querySelectorAll('.menu-item').forEach(item => {
+    item.addEventListener('click', () => {
+        document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active')); item.classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
         const targetId = item.getAttribute('data-tab');
-        document.getElementById(targetId).classList.add('active'); 
-        
+        document.getElementById(targetId).classList.add('active');
+
         if (targetId === 'privateMessages') {
             loadContacts();
         }
         if (targetId === 'statistics') loadStatistics();
         if (targetId === 'settings') closeSettingPanel();
-        
+
         // CHẠY HÀM THỐNG KÊ CÁ NHÂN KHI BẤM VÀO TAB MỚI
         if (targetId === 'personalStats') loadPersonalStatistics();
-        
+
         localStorage.setItem('streamVibeActiveTab', targetId);
-        if(window.innerWidth <= 768) closeMobileSidebar();
-    }); 
+        if (window.innerWidth <= 768) closeMobileSidebar();
+    });
 });
 
 // ==========================================
@@ -227,41 +235,41 @@ async function loadPersonalStatistics() {
         if (data.success) {
             // LỌC CHỈ LẤY CÁC VIDEO DO CHÍNH MÌNH ĐĂNG TẢI
             window.myRankedVideos = data.allRanked.filter(v => v.uploader === activeUser);
-            
+
             let totalViews = 0, totalLikes = 0, totalComments = 0;
-            
+
             // CỘNG DỒN SỐ LIỆU TẤT CẢ CÁC VIDEO CỦA MÌNH
             window.myRankedVideos.forEach(v => {
                 totalViews += v.viewsCount;
                 totalLikes += v.likesCount;
                 totalComments += v.commentCount;
             });
-            
+
             document.getElementById('myTotalViews').innerText = totalViews;
             document.getElementById('myTotalLikes').innerText = totalLikes;
             document.getElementById('myTotalComments').innerText = totalComments;
-            
+
             // Render giao diện danh sách Top video của mình (Mặc định xếp theo Lượt xem)
             renderMyRankedGrid('views');
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 function renderMyRankedGrid(sortBy) {
-    const grid = document.getElementById('myRankedVideoGrid'); 
-    if (!grid) return; 
+    const grid = document.getElementById('myRankedVideoGrid');
+    if (!grid) return;
     grid.innerHTML = '';
-    
+
     // Reset màu nút bấm
-    ['btnSortMyViews', 'btnSortMyChats', 'btnSortMyLikes'].forEach(id => { 
-        document.getElementById(id).style.background = 'rgba(255,255,255,0.1)'; 
-        document.getElementById(id).style.color = '#cbd5e1'; 
+    ['btnSortMyViews', 'btnSortMyChats', 'btnSortMyLikes'].forEach(id => {
+        document.getElementById(id).style.background = 'rgba(255,255,255,0.1)';
+        document.getElementById(id).style.color = '#cbd5e1';
     });
-    
+
     // Đổi màu nút được bấm
-    if(sortBy === 'views') { document.getElementById('btnSortMyViews').style.background = '#3b82f6'; document.getElementById('btnSortMyViews').style.color = '#fff'; }
-    else if(sortBy === 'comments') { document.getElementById('btnSortMyChats').style.background = '#ef4444'; document.getElementById('btnSortMyChats').style.color = '#fff'; }
-    else if(sortBy === 'likes') { document.getElementById('btnSortMyLikes').style.background = '#f43f5e'; document.getElementById('btnSortMyLikes').style.color = '#fff'; }
+    if (sortBy === 'views') { document.getElementById('btnSortMyViews').style.background = '#3b82f6'; document.getElementById('btnSortMyViews').style.color = '#fff'; }
+    else if (sortBy === 'comments') { document.getElementById('btnSortMyChats').style.background = '#ef4444'; document.getElementById('btnSortMyChats').style.color = '#fff'; }
+    else if (sortBy === 'likes') { document.getElementById('btnSortMyLikes').style.background = '#f43f5e'; document.getElementById('btnSortMyLikes').style.color = '#fff'; }
 
     // Sắp xếp
     let sortedList = [...window.myRankedVideos];
@@ -278,12 +286,12 @@ function renderMyRankedGrid(sortBy) {
     sortedList.forEach((video, index) => {
         const canDel = true; // Video của mình thì đương nhiên được quyền Xóa
         const card = createVideoCard(video, activeUser, getUserRole(activeUser), canDel, true);
-        
-        const rankBadge = document.createElement('div'); 
-        rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index===0?'#fbbf24':(index===1?'#94a3b8':(index===2?'#b45309':'#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5);`;
-        rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1); 
+
+        const rankBadge = document.createElement('div');
+        rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index === 0 ? '#fbbf24' : (index === 1 ? '#94a3b8' : (index === 2 ? '#b45309' : '#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5);`;
+        rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1);
         card.appendChild(rankBadge);
-        
+
         grid.appendChild(card);
     });
 }
@@ -292,40 +300,40 @@ function renderMyRankedGrid(sortBy) {
 async function loadContacts() {
     const list = document.getElementById('contactList');
     const badge = document.getElementById('msgBadge');
-    
+
     try {
         const res = await fetch(`/api/messages/contacts/${activeUser}`);
         const data = await res.json();
-        if(data.success && data.contacts.length > 0) {
+        if (data.success && data.contacts.length > 0) {
             list.innerHTML = '';
-            
+
             let localReadData = JSON.parse(localStorage.getItem('sv_read_counts_' + activeUser)) || {};
             let totalUnread = 0;
-            
-            for(let contact of data.contacts) {
+
+            for (let contact of data.contacts) {
                 const isActive = (contact === currentChatTarget) ? 'active' : '';
                 let unreadBadgeHtml = '';
-                
+
                 // Fetch tin nhắn để so sánh xem có bao nhiêu tin chưa đọc
                 const msgRes = await fetch(`/api/messages/${activeUser}/${contact}`);
                 const msgData = await msgRes.json();
-                if(msgData.success) {
+                if (msgData.success) {
                     let receivedMsgs = msgData.messages.filter(m => m.sender === contact).length;
                     let readCount = localReadData[contact] || 0;
                     let unread = receivedMsgs - readCount;
-                    
+
                     if (unread > 0) {
                         totalUnread += unread;
                         unreadBadgeHtml = `<span style="margin-left: auto; background: #ef4444; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 5px rgba(239, 68, 68, 0.5);">${unread}</span>`;
                     }
                 }
-                
+
                 list.innerHTML += `<div class="contact-item ${isActive}" onclick="openChatWithUser('${contact}')"><img src="${getAvatarUrl(contact)}" class="contact-avatar"><div class="contact-name">${contact}</div>${unreadBadgeHtml}</div>`;
             }
-            
+
             // Cập nhật số tổng ở thẻ Menu bên trái
-            if(badge) {
-                if(totalUnread > 0) {
+            if (badge) {
+                if (totalUnread > 0) {
                     badge.style.display = 'inline-block';
                     badge.innerText = totalUnread;
                 } else {
@@ -333,36 +341,36 @@ async function loadContacts() {
                 }
             }
         } else {
-            if(badge) badge.style.display = 'none';
+            if (badge) badge.style.display = 'none';
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 async function openChatWithUser(username) {
     currentChatTarget = username;
-    document.getElementById('chatEmptyState').style.display = 'none'; 
+    document.getElementById('chatEmptyState').style.display = 'none';
     document.getElementById('chatMainArea').style.display = 'flex';
-    document.getElementById('currentChatName').innerText = username; 
+    document.getElementById('currentChatName').innerText = username;
     document.getElementById('currentChatAvatar').src = getAvatarUrl(username);
-    
+
     const historyBox = document.getElementById('privateChatHistory');
     historyBox.innerHTML = '<p style="text-align:center; color:gray;">Đang tải...</p>';
     try {
         const res = await fetch(`/api/messages/${activeUser}/${username}`);
         const data = await res.json();
-        if(data.success) {
+        if (data.success) {
             historyBox.innerHTML = '';
             data.messages.forEach(msg => appendPrivateMessageUI(msg.sender, msg.message));
-            
+
             // ĐÁNH DẤU LÀ ĐÃ ĐỌC TOÀN BỘ TIN NHẮN CỦA NGƯỜI NÀY
             let receivedMsgs = data.messages.filter(m => m.sender === username).length;
             let localReadData = JSON.parse(localStorage.getItem('sv_read_counts_' + activeUser)) || {};
             localReadData[username] = receivedMsgs;
             localStorage.setItem('sv_read_counts_' + activeUser, JSON.stringify(localReadData));
-            
+
             loadContacts(); // Refresh lại danh sách để xóa số đỏ
         }
-    } catch(e){}
+    } catch (e) { }
 }
 
 function appendPrivateMessageUI(sender, text) {
@@ -375,11 +383,11 @@ function appendPrivateMessageUI(sender, text) {
 
 async function sendPrivateMessage(e) {
     e.preventDefault();
-    const input = document.getElementById('privateMsgInput'); 
+    const input = document.getElementById('privateMsgInput');
     const text = input.value.trim();
-    if(!text || !currentChatTarget) return;
+    if (!text || !currentChatTarget) return;
 
-    appendPrivateMessageUI(activeUser, text); 
+    appendPrivateMessageUI(activeUser, text);
     input.value = '';
 
     try {
@@ -388,16 +396,16 @@ async function sendPrivateMessage(e) {
             body: JSON.stringify({ sender: activeUser, receiver: currentChatTarget, message: text })
         });
         const data = await res.json();
-        if(data.success) {
+        if (data.success) {
             socket.emit('send_private_message', { sender: activeUser, receiver: currentChatTarget, message: text });
         }
-    } catch(err) {}
+    } catch (err) { }
 }
 
 socket.on('receive_private_message', (data) => {
     // Nếu đang mở đúng đoạn chat với người đó thì hiện tin nhắn ngay lập tức
     if ((data.sender === currentChatTarget && data.receiver === activeUser) || (data.sender === activeUser && data.receiver === currentChatTarget)) {
-        if(data.sender !== activeUser) appendPrivateMessageUI(data.sender, data.message);
+        if (data.sender !== activeUser) appendPrivateMessageUI(data.sender, data.message);
     }
 
     // Xử lý thông báo số đỏ
@@ -413,7 +421,7 @@ socket.on('receive_private_message', (data) => {
             openAlert("Tin nhắn riêng", `Bạn có tin nhắn mới từ ${data.sender}!`, "success");
         }
     }
-    
+
     loadContacts(); // Luôn chạy lại hàm này để nó tự tính toán và cập nhật số đỏ hoàn hảo!
 });
 
@@ -424,7 +432,7 @@ socket.on('receive_private_message', (data) => {
 function openAlert(title, message, type = 'success') {
     document.getElementById('alertTitle').innerText = title; document.getElementById('alertMessage').innerText = message;
     const icon = document.getElementById('alertIcon');
-    if(type === 'error') { icon.style.color = '#ef4444'; icon.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>'; } 
+    if (type === 'error') { icon.style.color = '#ef4444'; icon.innerHTML = '<i class="fa-solid fa-circle-xmark"></i>'; }
     else { icon.style.color = '#10b981'; icon.innerHTML = '<i class="fa-solid fa-circle-check"></i>'; }
     document.getElementById('universalAlertModal').style.display = 'flex';
 }
@@ -432,45 +440,45 @@ function openAlert(title, message, type = 'success') {
 function closeAlert() { document.getElementById('universalAlertModal').style.display = 'none'; }
 
 function openConfirm(action, data, title, message) {
-    pendingAction = action; pendingData = data; 
+    pendingAction = action; pendingData = data;
     document.getElementById('confirmTitle').innerText = title;
-    document.getElementById('confirmMessage').innerText = message; 
+    document.getElementById('confirmMessage').innerText = message;
     document.getElementById('universalConfirmModal').style.display = 'flex';
 }
 
-function closeConfirm() { 
-    document.getElementById('universalConfirmModal').style.display = 'none'; 
-    pendingAction = null; pendingData = null; 
+function closeConfirm() {
+    document.getElementById('universalConfirmModal').style.display = 'none';
+    pendingAction = null; pendingData = null;
 }
 
 // 1. HÀM XỬ LÝ ĐĂNG XUẤT VÀ XÓA BÀI
 function executeConfirmAction() {
-    if (pendingAction === 'logout') { 
-        localStorage.removeItem('streamVibeActiveUser'); 
+    if (pendingAction === 'logout') {
+        localStorage.removeItem('streamVibeActiveUser');
         localStorage.removeItem('streamVibeActiveRole');
-        
+
         // Ép trở về trang "Video của tôi" sau khi Đăng xuất
-        localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
-        
-        window.location.reload(); 
-    } 
+        localStorage.setItem('streamVibeActiveTab', 'dashboard');
+
+        window.location.reload();
+    }
     else if (pendingAction === 'deleteUser') {
         fetch('/api/users/' + pendingData, { method: 'DELETE' }).then(res => res.json()).then(data => {
-            if(data.success) {
+            if (data.success) {
                 loadUsersList();
-                document.getElementById('userSearchInput').value = ''; 
-                if(localStorage.getItem('streamVibeActiveUser') === pendingData) { 
-                    localStorage.removeItem('streamVibeActiveUser'); 
+                document.getElementById('userSearchInput').value = '';
+                if (localStorage.getItem('streamVibeActiveUser') === pendingData) {
+                    localStorage.removeItem('streamVibeActiveUser');
                     localStorage.removeItem('streamVibeActiveRole');
                     localStorage.setItem('streamVibeActiveTab', 'dashboard'); // Ép về trang chủ
-                    window.location.reload(); 
+                    window.location.reload();
                 } else { openAlert("Thành công", `Đã xóa tài khoản.`); }
             }
         });
-    } 
+    }
     else if (pendingAction === 'deleteVideo') {
         fetch(`/delete-video/${pendingData}`, { method: 'DELETE' }).then(res => res.json()).then(data => {
-            if(data.success) { loadVideoLists(); openAlert("Đã xóa Video", "Phân đoạn HLS đã bị xóa."); } 
+            if (data.success) { loadVideoLists(); openAlert("Đã xóa Video", "Phân đoạn HLS đã bị xóa."); }
             else { openAlert("Lỗi", data.message, "error"); }
         });
     }
@@ -478,7 +486,7 @@ function executeConfirmAction() {
 }
 
 function getUserRole(username) {
-    if (!username) return 'user'; 
+    if (!username) return 'user';
     if (username === localStorage.getItem('streamVibeActiveUser')) return localStorage.getItem('streamVibeActiveRole') || 'user';
     if (window.allUsersDB && window.allUsersDB.length > 0) {
         const found = window.allUsersDB.find(u => u.username === username);
@@ -513,16 +521,16 @@ async function submitNewUser(e) {
     const password = document.getElementById('newUserPasswordInput').value;
     let role = document.getElementById('newUserRole').value;
     if (role === 'admin') role = document.getElementById('adminTypeSelect').value;
-    
+
     try {
         const res = await fetch('/api/users/create', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password, role, requester: activeUser })
         });
         const data = await res.json();
-        if(data.success) { closeAddUserModal(); loadUsersList(); openAlert("Thành công", "Đã tạo tài khoản!"); } 
+        if (data.success) { closeAddUserModal(); loadUsersList(); openAlert("Thành công", "Đã tạo tài khoản!"); }
         else { openAlert("Lỗi bảo mật", data.message, "error"); }
-    } catch(err) { openAlert("Lỗi", "Lỗi kết nối", "error"); }
+    } catch (err) { openAlert("Lỗi", "Lỗi kết nối", "error"); }
 }
 
 function filterUsers() {
@@ -533,39 +541,39 @@ function filterUsers() {
 
 function loadUsersList() {
     const superAdminTbody = document.getElementById('superAdminTableBody');
-    const adminTbody = document.getElementById('adminTableBody'); 
+    const adminTbody = document.getElementById('adminTableBody');
     const userTbody = document.getElementById('userTableBody');
-    const superAdminSection = document.getElementById('superAdminSection'); 
+    const superAdminSection = document.getElementById('superAdminSection');
     const adminSection = document.getElementById('adminSection');
-    if(!superAdminTbody) return;
-    
+    if (!superAdminTbody) return;
+
     superAdminTbody.innerHTML = ''; adminTbody.innerHTML = ''; userTbody.innerHTML = '';
     fetch('/api/users').then(res => res.json()).then(data => {
         if (!data.success) return;
-        window.allUsersDB = data.users; 
+        window.allUsersDB = data.users;
         const activeRole = getUserRole(activeUser);
 
-        if (activeRole === 'superadmin') { 
-            superAdminSection.style.display = 'block'; adminSection.style.display = 'block'; 
-            if(document.getElementById('btnAddAdmin')) document.getElementById('btnAddAdmin').style.display = 'inline-flex';
-        } else if (activeRole === 'admin') { 
-            superAdminSection.style.display = 'none'; adminSection.style.display = 'block'; 
-            if(document.getElementById('btnAddAdmin')) document.getElementById('btnAddAdmin').style.display = 'none';
-        } else { 
-            superAdminSection.style.display = 'none'; adminSection.style.display = 'none'; 
-        } 
+        if (activeRole === 'superadmin') {
+            superAdminSection.style.display = 'block'; adminSection.style.display = 'block';
+            if (document.getElementById('btnAddAdmin')) document.getElementById('btnAddAdmin').style.display = 'inline-flex';
+        } else if (activeRole === 'admin') {
+            superAdminSection.style.display = 'none'; adminSection.style.display = 'block';
+            if (document.getElementById('btnAddAdmin')) document.getElementById('btnAddAdmin').style.display = 'none';
+        } else {
+            superAdminSection.style.display = 'none'; adminSection.style.display = 'none';
+        }
 
         let superAdminCount = 0; let adminCount = 0; let userCount = 0; let visibleCount = 0;
-        
+
         data.users.forEach((userObj) => {
             const user = userObj.username; const targetRole = userObj.role;
             let canSee = false;
-            if (activeRole === 'superadmin') canSee = true; 
+            if (activeRole === 'superadmin') canSee = true;
             else if (activeRole === 'admin') { if (targetRole === 'user' || user === activeUser) canSee = true; }
             if (!canSee) return;
-            visibleCount++; 
-            const tr = document.createElement('tr'); tr.className = 'user-row'; 
-            
+            visibleCount++;
+            const tr = document.createElement('tr'); tr.className = 'user-row';
+
             let actionHtml = '';
             if (user === activeUser) actionHtml = `<span style="color:var(--text-secondary);font-size:12px;"><i class="fa-solid fa-user-check" style="color:#10b981;"></i> Của bạn</span>`;
             else if (targetRole === 'superadmin') actionHtml = `<span style="color:var(--text-secondary);font-size:12px;"><i class="fa-solid fa-shield-halved" style="color:#f59e0b;"></i> Bất khả xâm phạm</span>`;
@@ -573,7 +581,7 @@ function loadUsersList() {
 
             let roleBadge = targetRole === 'admin' ? '<span style="color:#ef4444;font-size:10px;padding:2px 6px;margin-left:8px;background:rgba(239,68,68,0.1);">Q.Lý</span>' : (targetRole === 'statadmin' ? '<span style="color:#10b981;font-size:10px;padding:2px 6px;margin-left:8px;background:rgba(16,185,129,0.1);">T.Kê</span>' : '');
             let indexDisplay = targetRole === 'superadmin' ? '#' + (++superAdminCount) : (targetRole === 'admin' || targetRole === 'statadmin') ? '#' + (++adminCount) : '#' + (++userCount);
-            
+
             tr.innerHTML = `<td>${indexDisplay}</td><td class="username-cell" style="color:#fff;font-weight:bold;">${user} ${roleBadge}</td><td style="color:#10b981;">**********</td><td>${actionHtml}</td>`;
             if (targetRole === 'superadmin') superAdminTbody.appendChild(tr); else if (targetRole === 'admin' || targetRole === 'statadmin') adminTbody.appendChild(tr); else userTbody.appendChild(tr);
         });
@@ -589,13 +597,13 @@ function requestDeleteUser(user) { openConfirm('deleteUser', user, 'Xóa tài kh
 function toggleDropdown(id, event) {
     event.stopPropagation();
     const target = document.getElementById(`dropdown-${id}`); const isShown = target.classList.contains('show');
-    document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show')); 
+    document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
     if (!isShown) target.classList.add('show');
 }
 window.addEventListener('click', (e) => { if (!e.target.closest('.card-action-menu')) document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show')); });
 
 function shareVideo(id, event) {
-    if(event) event.stopPropagation();
+    if (event) event.stopPropagation();
     document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
     currentShareLinkGlobal = window.location.origin + '/player.html?id=' + id;
     document.getElementById('shareLinkURLInput').value = currentShareLinkGlobal;
@@ -608,14 +616,14 @@ function copyShareLinkDirectly() {
 function shareToApp(platform) {
     const encLink = encodeURIComponent(currentShareLinkGlobal); const text = encodeURIComponent("Xem video này trên StreamVibe nhé! 🚀");
     let url = "";
-    switch(platform) {
+    switch (platform) {
         case 'facebook': url = `https://www.facebook.com/sharer/sharer.php?u=${encLink}`; break;
-        case 'messenger': url = `fb-messenger://share/?link=${encLink}`; if(!/Android|iPhone|iPad/i.test(navigator.userAgent)) url = `https://www.facebook.com/dialog/send?link=${encLink}&app_id=291667064273102&redirect_uri=${encLink}`; break;
+        case 'messenger': url = `fb-messenger://share/?link=${encLink}`; if (!/Android|iPhone|iPad/i.test(navigator.userAgent)) url = `https://www.facebook.com/dialog/send?link=${encLink}&app_id=291667064273102&redirect_uri=${encLink}`; break;
         case 'zalo': url = `https://chat.zalo.me/?url=${encLink}`; break;
         case 'telegram': url = `https://t.me/share/url?url=${encLink}&text=${text}`; break;
         case 'gmail': url = `https://mail.google.com/mail/?view=cm&fs=1&to=&su=${encodeURIComponent("Chia sẻ Video")}&body=${encLink}`; break;
     }
-    if(url) window.open(url, '_blank'); 
+    if (url) window.open(url, '_blank');
 }
 
 function openEditVideoModal(id, currentTitle, event) {
@@ -631,33 +639,33 @@ async function submitEditVideo(event) {
     } catch (e) { openAlert("Lỗi", "Lỗi mạng", "error"); }
 }
 
-function updateFfmpegCommand() { 
+function updateFfmpegCommand() {
     const el = document.getElementById('ffmpegDynamicCode');
-    if(el) el.innerHTML = `ffmpeg(videoPath)<br>&nbsp;&nbsp;.addOption('-profile:v', '${document.getElementById('paramProfile').value}')<br>&nbsp;&nbsp;.addOption('-hls_time', '${document.getElementById('paramTime').value}')<br>&nbsp;&nbsp;.output(outputPlaylist)`; 
+    if (el) el.innerHTML = `ffmpeg(videoPath)<br>&nbsp;&nbsp;.addOption('-profile:v', '${document.getElementById('paramProfile').value}')<br>&nbsp;&nbsp;.addOption('-hls_time', '${document.getElementById('paramTime').value}')<br>&nbsp;&nbsp;.output(outputPlaylist)`;
 }
-if(document.getElementById('ffmpegDynamicCode')) updateFfmpegCommand();
+if (document.getElementById('ffmpegDynamicCode')) updateFfmpegCommand();
 
-function runHlsInspector(id) { 
+function runHlsInspector(id) {
     const r = document.getElementById('inspectResultArea');
-    if(!id) return r.style.display = 'none'; 
+    if (!id) return r.style.display = 'none';
     r.style.display = 'block'; document.getElementById('manifestOutput').innerHTML = `#EXTM3U<br>#EXT-X-VERSION:3<br>#EXTINF:10.000000,<br>/videos/${id}/main0.ts<br>#EXT-X-ENDLIST`;
 }
 
 function prepareUpload() { document.getElementById('uploaderInput').value = activeUser || 'Khách Vô Danh'; }
-function updateFileName(input) { 
-    if(input.files.length > 0) { 
-        document.getElementById('fileNameText').innerText = input.files[0].name; 
-        document.getElementById('fileNameText').style.color = "#60a5fa"; 
+function updateFileName(input) {
+    if (input.files.length > 0) {
+        document.getElementById('fileNameText').innerText = input.files[0].name;
+        document.getElementById('fileNameText').style.color = "#60a5fa";
         let titleInput = document.getElementById('videoTitleInput');
-        if(titleInput.value.trim() === '') titleInput.value = input.files[0].name.replace(/\.[^/.]+$/, "");
-    } 
+        if (titleInput.value.trim() === '') titleInput.value = input.files[0].name.replace(/\.[^/.]+$/, "");
+    }
 }
-function showLoading() { 
+function showLoading() {
     document.getElementById('loadingOverlay').style.display = 'flex'; let progress = 0;
     const bar = document.getElementById('uploadProgressBar'); const text = document.getElementById('uploadProgressText'); const loadingText = document.getElementById('loadingText');
     setInterval(() => {
-        if (progress < 40) { progress += 4; loadingText.innerText = "ĐANG TẢI LÊN MÁY CHỦ..."; } 
-        else if (progress < 85) { progress += 2; loadingText.innerText = "ĐANG BĂM HLS..."; } 
+        if (progress < 40) { progress += 4; loadingText.innerText = "ĐANG TẢI LÊN MÁY CHỦ..."; }
+        else if (progress < 85) { progress += 2; loadingText.innerText = "ĐANG BĂM HLS..."; }
         else if (progress < 98) { progress += 1; loadingText.innerText = "ĐANG TẠO ẢNH BÌA..."; }
         if (progress > 99) progress = 99; bar.style.width = progress + '%'; text.innerText = progress + '%';
     }, 400);
@@ -666,37 +674,37 @@ function showLoading() {
 function watchVideo(id) { window.location.href = '/player.html?id=' + id; }
 
 async function loadVideoLists() {
-    const myGrid = document.getElementById('myVideoGrid'); const publicGrid = document.getElementById('publicVideoGrid'); 
+    const myGrid = document.getElementById('myVideoGrid'); const publicGrid = document.getElementById('publicVideoGrid');
     const inspectSelector = document.getElementById('inspectSelector');
-    if(myGrid) myGrid.innerHTML = '<p style="color:var(--text-secondary);">Đang tải...</p>';
-    if(publicGrid) publicGrid.innerHTML = '<p style="color:var(--text-secondary);">Đang tải...</p>';
-    if(inspectSelector) inspectSelector.innerHTML = '<option value="">-- Chọn Node Video --</option>';
+    if (myGrid) myGrid.innerHTML = '<p style="color:var(--text-secondary);">Đang tải...</p>';
+    if (publicGrid) publicGrid.innerHTML = '<p style="color:var(--text-secondary);">Đang tải...</p>';
+    if (inspectSelector) inspectSelector.innerHTML = '<option value="">-- Chọn Node Video --</option>';
     try {
         const res = await fetch('/api/videos'); const data = await res.json();
         if (data.success) {
-            if(myGrid) myGrid.innerHTML = ''; if(publicGrid) publicGrid.innerHTML = '';
+            if (myGrid) myGrid.innerHTML = ''; if (publicGrid) publicGrid.innerHTML = '';
             const activeRole = getUserRole(activeUser);
-            const myVideos = data.videos.filter(v => v.uploader === activeUser); 
-            
-            if(document.getElementById('workspaceMyVideoCount')) document.getElementById('workspaceMyVideoCount').innerText = myVideos.length;
-            
+            const myVideos = data.videos.filter(v => v.uploader === activeUser);
+
+            if (document.getElementById('workspaceMyVideoCount')) document.getElementById('workspaceMyVideoCount').innerText = myVideos.length;
+
             if (myVideos.length === 0 && myGrid) myGrid.innerHTML = "<p style='color:var(--text-secondary);'>Chưa có video.</p>";
-            else if(myGrid) {
+            else if (myGrid) {
                 myVideos.forEach((v, i) => {
-                    myGrid.appendChild(createVideoCard(v, activeUser, activeRole, true, false)); 
-                    if(inspectSelector) { const opt = document.createElement('option'); opt.value = v.videoId; opt.innerText = `Node #${i+1}`; inspectSelector.appendChild(opt); }
+                    myGrid.appendChild(createVideoCard(v, activeUser, activeRole, true, false));
+                    if (inspectSelector) { const opt = document.createElement('option'); opt.value = v.videoId; opt.innerText = `Node #${i + 1}`; inspectSelector.appendChild(opt); }
                 });
             }
 
             if (data.videos.length === 0 && publicGrid) publicGrid.innerHTML = "<p style='color:var(--text-secondary);'>Trống.</p>";
-            else if(publicGrid) {
+            else if (publicGrid) {
                 data.videos.forEach(v => {
                     const canDel = (v.uploader === activeUser || activeRole === 'superadmin');
-                    publicGrid.appendChild(createVideoCard(v, activeUser, activeRole, canDel, true)); 
+                    publicGrid.appendChild(createVideoCard(v, activeUser, activeRole, canDel, true));
                 });
             }
         }
-    } catch (err) {}
+    } catch (err) { }
 }
 
 function timeAgo(dateString) {
@@ -722,11 +730,11 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
         }
     }
 
-    const id = video.videoId; const ownerName = video.uploader; const safeTitle = (video.title||'').replace(/'/g, "\\'"); 
+    const id = video.videoId; const ownerName = video.uploader; const safeTitle = (video.title || '').replace(/'/g, "\\'");
     const viewCount = Array.isArray(video.views) ? video.views.length : 0;
     const likeCount = video.likesCount !== undefined ? video.likesCount : (Array.isArray(video.likes) ? video.likes.length : 0);
     const card = document.createElement('div'); card.className = 'video-card glass-card';
-    
+
     // Gửi kèm ownerName vào nút tải về để hàm kiểm tra quyền tải
     let menuHtml = canDelete ? `
         <div class="dropdown-content" id="dropdown-${id}">
@@ -742,8 +750,8 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
             <div class="dropdown-item" onclick="shareVideo('${id}', event)"><i class="fa-solid fa-share-nodes"></i> Chia sẻ Link</div>
         </div>`;
 
-    let badgeHtml = showBadge ? `<div class="v-uploader-yt">${ownerName} ${ownerName.toLowerCase()==='lam' ? '<i class="fa-solid fa-crown" style="color:#fbbf24;"></i>' : ''}</div>` : `<div class="v-uploader-yt">Video của bạn</div>`;
-        
+    let badgeHtml = showBadge ? `<div class="v-uploader-yt">${ownerName} ${ownerName.toLowerCase() === 'lam' ? '<i class="fa-solid fa-crown" style="color:#fbbf24;"></i>' : ''}</div>` : `<div class="v-uploader-yt">Video của bạn</div>`;
+
     card.innerHTML = `
         <div class="thumb-area" style="background: url('/videos/${id}/thumbnail.jpg') center/cover;" onclick="watchVideo('${id}')">
             <div class="duration-badge">${video.duration}</div>
@@ -753,7 +761,18 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
             <div class="avatar-col"><img src="${getAvatarUrl(ownerName)}"></div>
             <div class="details-col" onclick="watchVideo('${id}')">
                 <div class="v-title-yt">${video.title}</div>${badgeHtml}
-                <div class="v-meta-yt">${viewCount} lượt xem • <span style="color:#fda4af;"><i class="fa-solid fa-heart" style="color:#f43f5e;"></i> ${likeCount}</span> • ${timeAgo(video.createdAt)}</div>
+                
+                <div style="display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 4px; font-weight: 500;">
+                    <span style="background: rgba(16, 185, 129, 0.1); color: #10b981; padding: 2px 5px; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-solid fa-eye" style="font-size: 9px;"></i> ${viewCount}
+                    </span>
+                    <span style="background: rgba(244, 63, 94, 0.1); color: #f43f5e; padding: 2px 5px; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
+                        <i class="fa-solid fa-heart" style="font-size: 9px;"></i> ${likeCount}
+                    </span>
+                    <span style="color: #475569; font-size: 10px;">•</span>
+                    <span style="color: #94a3b8; font-size: 11px;">${timeAgo(video.createdAt)}</span>
+                </div>
+
             </div>
             <div class="action-col"><button class="dots-btn-yt" onclick="toggleDropdown('${id}', event)"><i class="fa-solid fa-ellipsis-vertical"></i></button>${menuHtml}</div>
         </div>`;
@@ -763,9 +782,9 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
 // HÀM XỬ LÝ KHI BẤM NÚT TẢI VỀ NGOÀI TRANG CHỦ
 // --- HÀM TẢI VIDEO (ĐÃ GẮN KHÓA TẢI) ---
 async function downloadVideo(id, title, event, uploaderName) {
-    event.stopPropagation(); 
+    event.stopPropagation();
     document.querySelectorAll('.dropdown-content.show').forEach(m => m.classList.remove('show'));
-    
+
     // 2. KIỂM TRA QUYỀN TẢI: Chặn nếu tác giả đặt "Khóa"
     const activeU = localStorage.getItem('streamVibeActiveUser');
     if (window.globalPermissions && window.globalPermissions[uploaderName]) {
@@ -787,33 +806,33 @@ async function downloadVideo(id, title, event, uploaderName) {
 }
 
 // --- HÀM MỞ BẢNG VÀ LƯU CÀI ĐẶT QUYỀN RIÊNG TƯ / TẢI VIDEO ---
-function openPrivacySetting() { 
-    document.getElementById('privacySettingModal').style.display = 'flex'; 
+function openPrivacySetting() {
+    document.getElementById('privacySettingModal').style.display = 'flex';
 }
 
-function openDownloadSetting() { 
-    document.getElementById('downloadSettingModal').style.display = 'flex'; 
+function openDownloadSetting() {
+    document.getElementById('downloadSettingModal').style.display = 'flex';
 }
 
 function saveAccountSetting(type) {
-    const val = type === 'privacy' 
+    const val = type === 'privacy'
         ? document.querySelector('input[name="videoPrivacy"]:checked').value
         : document.querySelector('input[name="videoDownload"]:checked').value;
-    
+
     fetch('/api/settings/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: localStorage.getItem('streamVibeActiveUser'), field: type, value: val })
-    }).then(r=>r.json()).then(d=>{
+    }).then(r => r.json()).then(d => {
         // Đóng bảng sau khi lưu thành công
         document.getElementById(type === 'privacy' ? 'privacySettingModal' : 'downloadSettingModal').style.display = 'none';
-        
+
         openAlert("Thành công", `Đã lưu cài đặt ${type === 'privacy' ? 'Riêng tư' : 'Tải video'}! Hệ thống sẽ cập nhật sau vài giây.`, "success");
         setTimeout(() => window.location.reload(), 2000);
     });
 }
-function requestDeleteVideo(id, event) { 
+function requestDeleteVideo(id, event) {
     event.stopPropagation(); document.getElementById(`dropdown-${id}`).classList.remove('show'); openConfirm('deleteVideo', id, 'Xóa', 'Bạn chắc chắn muốn xóa?');
- }
+}
 
 // ==========================================
 // TÍNH NĂNG THỐNG KÊ, THÔNG BÁO VÀ AUTH
@@ -829,38 +848,38 @@ async function loadNotifications() {
             const myVideoIds = dV.videos.filter(v => v.uploader === activeUser).map(v => v.videoId);
             const valid = dN.notis.filter(n => n.user !== activeUser && myVideoIds.includes(n.videoId));
             let unread = valid.filter(n => !readNotis.includes(n.id)).length;
-            if(badge) badge.style.display = unread > 0 ? 'block' : 'none';
-            if(badge) badge.innerText = unread;
-            if(valid.length === 0 && container) { container.innerHTML = '<p style="color:var(--text-secondary);">Chưa có bình luận nào.</p>'; return; }
-            if(container) container.innerHTML = '';
+            if (badge) badge.style.display = unread > 0 ? 'block' : 'none';
+            if (badge) badge.innerText = unread;
+            if (valid.length === 0 && container) { container.innerHTML = '<p style="color:var(--text-secondary);">Chưa có bình luận nào.</p>'; return; }
+            if (container) container.innerHTML = '';
             valid.forEach((noti) => {
                 const isRead = readNotis.includes(noti.id);
                 const el = document.createElement('div'); el.className = `noti-item ${isRead ? '' : 'unread'}`;
-                el.onclick = () => { if(!isRead) { readNotis.push(noti.id); localStorage.setItem('streamVibeReadNotis_' + activeUser, JSON.stringify(readNotis)); } window.location.href = '/player.html?id=' + noti.videoId; };
+                el.onclick = () => { if (!isRead) { readNotis.push(noti.id); localStorage.setItem('streamVibeReadNotis_' + activeUser, JSON.stringify(readNotis)); } window.location.href = '/player.html?id=' + noti.videoId; };
                 const vTitle = dV.videos.find(v => v.videoId === noti.videoId)?.title || 'Video';
                 el.innerHTML = `<img src="${getAvatarUrl(noti.user)}" class="noti-avatar"><div class="noti-info"><div class="noti-time">${timeAgo(noti.createdAt)} <span style="color:#94a3b8;">• Tại: ${vTitle}</span></div><div class="noti-text"><b>${noti.user}</b>: "${noti.text}"</div></div>`;
-                if(container) container.appendChild(el);
+                if (container) container.appendChild(el);
             });
         }
-    } catch(err) {}
+    } catch (err) { }
 }
 
 function clearNotifications() {
-    fetch('/api/notifications').then(r=>r.json()).then(d => {
-        if(d.success) { localStorage.setItem('streamVibeReadNotis_' + activeUser, JSON.stringify(d.notis.map(n=>n.id))); loadNotifications(); }
+    fetch('/api/notifications').then(r => r.json()).then(d => {
+        if (d.success) { localStorage.setItem('streamVibeReadNotis_' + activeUser, JSON.stringify(d.notis.map(n => n.id))); loadNotifications(); }
     });
 }
 
 socket.on('global_chat_notification', () => loadNotifications());
 
-let viewsChartInstance = null; let commentsChartInstance = null; window.allRankedVideos = []; 
+let viewsChartInstance = null; let commentsChartInstance = null; window.allRankedVideos = [];
 async function loadStatistics() {
     try {
         const res = await fetch('/api/statistics'); const data = await res.json();
         if (data.success) {
             document.getElementById('statUsers').innerText = data.overview.users; document.getElementById('statVideos').innerText = data.overview.videos;
             document.getElementById('statChats').innerText = data.overview.chats; document.getElementById('statLikes').innerText = data.overview.likes;
-            window.allRankedVideos = data.allRanked; 
+            window.allRankedVideos = data.allRanked;
             const ctxViews = document.getElementById('viewsChart').getContext('2d');
             if (viewsChartInstance) viewsChartInstance.destroy();
             viewsChartInstance = new Chart(ctxViews, { type: 'bar', data: { labels: data.topViews.map(v => v.title), datasets: [{ label: 'Lượt xem', data: data.topViews.map(v => v.viewsCount), backgroundColor: '#3b82f6', borderRadius: 6 }] }, options: { responsive: true } });
@@ -869,15 +888,15 @@ async function loadStatistics() {
             commentsChartInstance = new Chart(ctxComments, { type: 'doughnut', data: { labels: data.topChats.map(c => c.title), datasets: [{ data: data.topChats.map(c => c.commentCount), backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'], borderWidth: 0 }] }, options: { responsive: true } });
             renderRankedGrid('views');
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 function renderRankedGrid(sortBy) {
     const grid = document.getElementById('rankedVideoGrid'); if (!grid) return; grid.innerHTML = '';
     ['btnSortViews', 'btnSortChats', 'btnSortLikes'].forEach(id => { document.getElementById(id).style.background = 'rgba(255,255,255,0.1)'; document.getElementById(id).style.color = '#cbd5e1'; });
-    if(sortBy === 'views') { document.getElementById('btnSortViews').style.background = '#3b82f6'; document.getElementById('btnSortViews').style.color = '#fff'; }
-    else if(sortBy === 'comments') { document.getElementById('btnSortChats').style.background = '#ef4444'; document.getElementById('btnSortChats').style.color = '#fff'; }
-    else if(sortBy === 'likes') { document.getElementById('btnSortLikes').style.background = '#f43f5e'; document.getElementById('btnSortLikes').style.color = '#fff'; }
+    if (sortBy === 'views') { document.getElementById('btnSortViews').style.background = '#3b82f6'; document.getElementById('btnSortViews').style.color = '#fff'; }
+    else if (sortBy === 'comments') { document.getElementById('btnSortChats').style.background = '#ef4444'; document.getElementById('btnSortChats').style.color = '#fff'; }
+    else if (sortBy === 'likes') { document.getElementById('btnSortLikes').style.background = '#f43f5e'; document.getElementById('btnSortLikes').style.color = '#fff'; }
 
     let sortedList = [...window.allRankedVideos];
     if (sortBy === 'views') sortedList.sort((a, b) => b.viewsCount - a.viewsCount);
@@ -886,7 +905,7 @@ function renderRankedGrid(sortBy) {
 
     sortedList.forEach((video, index) => {
         const card = createVideoCard(video, activeUser, getUserRole(activeUser), false, true);
-        const rankBadge = document.createElement('div'); rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index===0?'#fbbf24':(index===1?'#94a3b8':(index===2?'#b45309':'#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2);`;
+        const rankBadge = document.createElement('div'); rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index === 0 ? '#fbbf24' : (index === 1 ? '#94a3b8' : (index === 2 ? '#b45309' : '#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2);`;
         rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1); card.appendChild(rankBadge);
         grid.appendChild(card);
     });
@@ -898,11 +917,11 @@ let currentRecoveryMode = 'email'; // Biến lưu trạng thái hiện tại (Em
 function showRegister() {
     document.getElementById('authTitle').innerText = 'Đăng Ký Tài Khoản';
     document.getElementById('authDesc').innerText = 'Nhập Email hoặc Số điện thoại để khôi phục mật khẩu sau này.';
-    
-    document.getElementById('recoveryInputWrapper').style.display = 'block'; 
+
+    document.getElementById('recoveryInputWrapper').style.display = 'block';
     document.getElementById('passwordInput').style.display = 'block';
     document.getElementById('forgotPasswordLink').style.display = 'none';
-    
+
     document.getElementById('actionButtons').style.display = 'none';
     document.getElementById('forgotButtons').style.display = 'none';
     document.getElementById('registerButtons').style.display = 'flex';
@@ -912,12 +931,12 @@ function showRegister() {
 function showLogin() {
     document.getElementById('authTitle').innerText = 'Cổng Quản Trị Hệ Thống';
     document.getElementById('authDesc').innerText = 'Nhập tên và mật khẩu để Đăng nhập hệ thống.';
-    
+
     document.getElementById('recoveryInputWrapper').style.display = 'none';
-    
+
     document.getElementById('passwordInput').style.display = 'block';
     document.getElementById('forgotPasswordLink').style.display = 'inline-block';
-    
+
     document.getElementById('actionButtons').style.display = 'flex';
     document.getElementById('forgotButtons').style.display = 'none';
     document.getElementById('registerButtons').style.display = 'none';
@@ -927,11 +946,11 @@ function showLogin() {
 function showForgotPassword() {
     document.getElementById('authTitle').innerText = 'Khôi Phục Mật Khẩu';
     document.getElementById('authDesc').innerText = 'Nhập thông tin để hệ thống tìm lại tài khoản của bạn.';
-    
-    document.getElementById('recoveryInputWrapper').style.display = 'block'; 
-    document.getElementById('passwordInput').style.display = 'none'; 
+
+    document.getElementById('recoveryInputWrapper').style.display = 'block';
+    document.getElementById('passwordInput').style.display = 'none';
     document.getElementById('forgotPasswordLink').style.display = 'none';
-    
+
     document.getElementById('actionButtons').style.display = 'none';
     document.getElementById('registerButtons').style.display = 'none';
     document.getElementById('forgotButtons').style.display = 'flex';
@@ -942,7 +961,7 @@ function showForgotPassword() {
 function toggleInputMethod() {
     const inputEl = document.getElementById('recoveryInput');
     const btnEl = document.getElementById('toggleRecoveryBtn');
-    
+
     if (currentRecoveryMode === 'email') {
         currentRecoveryMode = 'phone';
         inputEl.placeholder = 'Nhập Số điện thoại của bạn...';
@@ -962,40 +981,40 @@ function toggleInputMethod() {
 
 // 2. HÀM XỬ LÝ ĐĂNG NHẬP
 function loginAccount() {
-    const username = document.getElementById('usernameInput').value.trim(); 
+    const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value;
-    
+
     fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) })
-    .then(r => r.json()).then(d => { 
-        if(d.success) { 
-            localStorage.setItem('streamVibeActiveUser', d.username); 
-            localStorage.setItem('streamVibeActiveRole', d.role); 
-            
-            // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng nhập thành công
-            localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
-            
-            window.location.reload(); 
-        } else { 
-            document.getElementById('loginError').innerText = d.message; 
-            document.getElementById('loginError').style.display = 'block'; 
-        } 
-    });
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                localStorage.setItem('streamVibeActiveUser', d.username);
+                localStorage.setItem('streamVibeActiveRole', d.role);
+
+                // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng nhập thành công
+                localStorage.setItem('streamVibeActiveTab', 'dashboard');
+
+                window.location.reload();
+            } else {
+                document.getElementById('loginError').innerText = d.message;
+                document.getElementById('loginError').style.display = 'block';
+            }
+        });
 }
 
 // 3. HÀM XỬ LÝ ĐĂNG KÝ
 function registerAccount() {
-    const username = document.getElementById('usernameInput').value.trim(); 
+    const username = document.getElementById('usernameInput').value.trim();
     const password = document.getElementById('passwordInput').value;
     const recoveryVal = document.getElementById('recoveryInput').value.trim();
 
-    if(!username || !password) {
-        document.getElementById('loginError').innerText = "Lỗi: Vui lòng nhập Tên đăng nhập và Mật khẩu!"; 
+    if (!username || !password) {
+        document.getElementById('loginError').innerText = "Lỗi: Vui lòng nhập Tên đăng nhập và Mật khẩu!";
         document.getElementById('loginError').style.display = 'block';
         return;
     }
 
     if (!recoveryVal) {
-        document.getElementById('loginError').innerText = `Lỗi: Vui lòng nhập ${currentRecoveryMode === 'email' ? 'Email' : 'Số điện thoại'} để đăng ký!`; 
+        document.getElementById('loginError').innerText = `Lỗi: Vui lòng nhập ${currentRecoveryMode === 'email' ? 'Email' : 'Số điện thoại'} để đăng ký!`;
         document.getElementById('loginError').style.display = 'block';
         return;
     }
@@ -1003,108 +1022,132 @@ function registerAccount() {
     let email = currentRecoveryMode === 'email' ? recoveryVal : '';
     let phone = currentRecoveryMode === 'phone' ? recoveryVal : '';
 
-    fetch('/api/register', { 
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ username, password, email, phone }) 
+    fetch('/api/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, email, phone })
     })
-    .then(r => r.json()).then(d => { 
-        if(d.success) { 
-            localStorage.setItem('streamVibeActiveUser', username); 
-            localStorage.setItem('streamVibeActiveRole', d.role); 
-            
-            // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng ký thành công
-            localStorage.setItem('streamVibeActiveTab', 'dashboard'); 
-            
-            window.location.reload(); 
-        } else { 
-            document.getElementById('loginError').innerText = d.message; 
-            document.getElementById('loginError').style.display = 'block'; 
-        } 
-    });
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                localStorage.setItem('streamVibeActiveUser', username);
+                localStorage.setItem('streamVibeActiveRole', d.role);
+
+                // CHÌA KHÓA Ở ĐÂY: Ép buộc mở trang "Video của tôi" khi Đăng ký thành công
+                localStorage.setItem('streamVibeActiveTab', 'dashboard');
+
+                window.location.reload();
+            } else {
+                document.getElementById('loginError').innerText = d.message;
+                document.getElementById('loginError').style.display = 'block';
+            }
+        });
 }
 
 function submitForgotPassword() {
     const username = document.getElementById('usernameInput').value.trim();
     const recoveryVal = document.getElementById('recoveryInput').value.trim();
 
-    if(!username) {
-        document.getElementById('loginError').innerText = "Vui lòng nhập Tên đăng nhập!"; 
+    if (!username) {
+        document.getElementById('loginError').innerText = "Vui lòng nhập Tên đăng nhập!";
         document.getElementById('loginError').style.display = 'block';
         return;
     }
 
     if (!recoveryVal) {
-        document.getElementById('loginError').innerText = `Vui lòng nhập ${currentRecoveryMode === 'email' ? 'Email' : 'Số điện thoại'} để khôi phục!`; 
+        document.getElementById('loginError').innerText = "Vui lòng nhập Email hoặc SĐT để khôi phục!";
         document.getElementById('loginError').style.display = 'block';
         return;
     }
-    
-    let email = currentRecoveryMode === 'email' ? recoveryVal : '';
-    let phone = currentRecoveryMode === 'phone' ? recoveryVal : '';
 
-    fetch('/api/forgot-password', { 
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ username, email, phone }) 
+    // TỰ ĐỘNG PHÂN LOẠI EMAIL HAY SỐ ĐIỆN THOẠI
+    let email = '';
+    let phone = '';
+    if (recoveryVal.includes('@')) {
+        email = recoveryVal; // Nếu có còng @ -> Chắc chắn là gửi Email
+    } else {
+        phone = recoveryVal; // Nếu không có @ -> Là Số điện thoại
+    }
+
+    fetch('/api/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, email, phone })
     })
-    .then(r => r.json()).then(d => { 
-        if(d.success) { 
-            openAlert("Khôi phục thành công", `Mật khẩu của bạn là: ${d.password}\n(Trong thực tế, mật khẩu này sẽ được gửi ẩn qua Email/SMS của bạn)`, "success");
-            showLogin(); 
-        } else { 
-            document.getElementById('loginError').innerText = d.message; 
-            document.getElementById('loginError').style.display = 'block'; 
-        } 
-    });
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                openAlert("Thành công!", "Hệ thống đã gửi mật khẩu mới cho bạn. Vui lòng kiểm tra hộp thư hoặc thư rác!", "success");
+                showLogin();
+            } else {
+                document.getElementById('loginError').innerText = d.message;
+                document.getElementById('loginError').style.display = 'block';
+            }
+        });
 }
 
 function updateProfileUI(username) {
     document.getElementById('displayUsername').innerText = username; document.getElementById('displayAvatar').src = getAvatarUrl(username);
-    const role = getUserRole(username); document.getElementById('displayRole').innerText = role === 'superadmin' ? 'Tổng Tư Lệnh' : (role === 'admin' ? 'Quản trị viên' : (role==='statadmin'?'Thống kê':'Khách'));
-    if(role === 'superadmin' || role === 'admin') { if(document.getElementById('adminMenuTab')) document.getElementById('adminMenuTab').style.display = 'block'; if(document.getElementById('technicalSectionTitle')) document.getElementById('technicalSectionTitle').style.display = 'flex'; if(document.getElementById('technicalMenuList')) document.getElementById('technicalMenuList').style.display = 'flex'; }
-    if(role === 'superadmin' || role === 'statadmin') { if(document.getElementById('statisticsMenuTab')) document.getElementById('statisticsMenuTab').style.display = 'block'; }
+    const role = getUserRole(username); document.getElementById('displayRole').innerText = role === 'superadmin' ? 'Tổng Tư Lệnh' : (role === 'admin' ? 'Quản trị viên' : (role === 'statadmin' ? 'Thống kê' : 'Khách'));
+    if (role === 'superadmin' || role === 'admin') { if (document.getElementById('adminMenuTab')) document.getElementById('adminMenuTab').style.display = 'block'; if (document.getElementById('technicalSectionTitle')) document.getElementById('technicalSectionTitle').style.display = 'flex'; if (document.getElementById('technicalMenuList')) document.getElementById('technicalMenuList').style.display = 'flex'; }
+    if (role === 'superadmin' || role === 'statadmin') { if (document.getElementById('statisticsMenuTab')) document.getElementById('statisticsMenuTab').style.display = 'block'; }
 }
 
 function openSettingPanel(panelId) { document.getElementById('settingsMainMenu').style.display = 'none'; document.querySelectorAll('.setting-detail-panel').forEach(p => p.style.display = 'none'); document.getElementById(panelId).style.display = 'block'; }
 function closeSettingPanel() { document.querySelectorAll('.setting-detail-panel').forEach(p => p.style.display = 'none'); document.getElementById('settingsMainMenu').style.display = 'block'; }
 
-window.loadSettingsInfo = function() {
+// =========================================================================
+// HÀM LOAD THÔNG TIN CÀI ĐẶT (ĐÃ GỘP LẠI VÀ CHỈNH SỬA ẢNH BÌA TO)
+// =========================================================================
+window.loadSettingsInfo = function () {
     if (!activeUser) return;
-    document.getElementById('settingUsername').innerText = activeUser; 
-    
+
+    // 1. Lấy thông tin Tên hiển thị
+    document.getElementById('settingUsername').innerText = activeUser;
     let displayName = activeUser;
     if (window.allUsersDB && window.allUsersDB.length > 0) {
         const me = window.allUsersDB.find(u => u.username === activeUser);
         if (me && me.display_name) displayName = me.display_name;
+        if (document.getElementById('tenHienThiMoi')) document.getElementById('tenHienThiMoi').innerText = displayName;
     }
-    
+
+    // 2. Cập nhật tên trong Cài Đặt
     if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
     if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
     if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
-    
-    document.getElementById('profileEditAvatar').src = getAvatarUrl(activeUser);
-    
-    // ĐỌC VÀ HIỂN THỊ ẢNH BÌA TỪ LOCALSTORAGE
+
+    // 3. Cập nhật Avatar trong Cài đặt và Trang chủ
+    const myAvatar = getAvatarUrl(activeUser);
+    if (document.getElementById('profileEditAvatar')) document.getElementById('profileEditAvatar').src = myAvatar;
+    if (document.getElementById('dashboardBannerAvatar')) document.getElementById('dashboardBannerAvatar').src = myAvatar;
+
+    // 4. Cập nhật Tên và Chức vụ ngoài Ảnh bìa trang chủ
+    if (document.getElementById('dashboardBannerName')) document.getElementById('dashboardBannerName').innerText = displayName;
+
+    const bannerRole = document.getElementById('dashboardBannerRole');
+    if (bannerRole) {
+        const roleCode = getUserRole(activeUser);
+        bannerRole.innerText = roleCode === 'superadmin' ? '👑 Tổng Tư Lệnh' : (roleCode === 'admin' ? '🛡️ Quản trị viên' : (roleCode === 'statadmin' ? '📊 Quản lý Thống kê' : '👤 Thành viên'));
+    }
+
+    // 5. ĐỌC VÀ HIỂN THỊ ẢNH BÌA TỪ LOCALSTORAGE (KHÔNG CÓ LỚP PHỦ ĐEN)
     let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
     let userBanner = banners[activeUser];
-    if(userBanner) {
-        // Cập nhật ở trang Cài Đặt
-        if(document.getElementById('profileEditBannerPreview')) {
+    if (userBanner) {
+        // Hiện ở preview phần Cài Đặt
+        if (document.getElementById('profileEditBannerPreview')) {
             document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
         }
-        
-        // CẬP NHẬT TRÀN TOÀN BỘ KHUNG Ở TRANG CHỦ
-        // Dùng querySelector để bắt chính xác class của vùng to nhất
+
+        // Hiện tràn toàn bộ khung to ở Trang Chủ (bỏ linear-gradient để ảnh sáng nét)
         const mainBanner = document.querySelector('.hero-banner-new');
-        if(mainBanner) {
-            // Giữ lại lớp gradient màu xanh tím để chữ trắng đè lên vẫn đọc được
-            mainBanner.style.backgroundImage = `linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(59, 130, 246, 0.6) 100%), url(${userBanner})`;
+        if (mainBanner) {
+            mainBanner.style.backgroundImage = `url(${userBanner})`;
             mainBanner.style.backgroundSize = 'cover';
             mainBanner.style.backgroundPosition = 'center';
+            mainBanner.style.backgroundRepeat = 'no-repeat';
         }
     }
-    
-    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
-    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
+
+    // 6. Số điện thoại
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {};
+    if (document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
 
 function handleChangePassword(e) { e.preventDefault(); openAlert("Tính năng bảo trì", "Chức năng đổi mật khẩu đang bảo trì.", "success"); }
@@ -1112,17 +1155,17 @@ function handleSavePhone(e) { e.preventDefault(); let phones = JSON.parse(localS
 function requestLogout() { openConfirm('logout', null, 'Đăng xuất', 'Bạn muốn đăng xuất khỏi phiên làm việc?'); }
 
 window.onload = () => {
-    if(activeUser) {
+    if (activeUser) {
         document.getElementById('loginModal').style.display = 'none';
-        fetch('/api/users').then(r => r.json()).then(d => { 
-            if(d.success) window.allUsersDB = d.users; 
-            updateProfileUI(activeUser); 
-            loadUsersList(); 
-            loadVideoLists(); 
-            loadSettingsInfo(); 
+        fetch('/api/users').then(r => r.json()).then(d => {
+            if (d.success) window.allUsersDB = d.users;
+            updateProfileUI(activeUser);
+            loadUsersList();
+            loadVideoLists();
+            loadSettingsInfo();
             loadNotifications();
             // CHẠY NGAY HÀM NÀY ĐỂ HIỆN THỊ TẤT CẢ SỐ ĐỎ KHI TRANG VỪA TẢI XONG
-            loadContacts(); 
+            loadContacts();
         });
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('tab') === 'privateMessages' && urlParams.get('chatUser')) {
@@ -1138,23 +1181,23 @@ window.onload = () => {
 };
 
 // --- HÀM MỞ BẢNG VÀ LƯU CÀI ĐẶT QUYỀN RIÊNG TƯ / TẢI VIDEO ---
-function openPrivacySetting() { 
-    document.getElementById('privacySettingModal').style.display = 'flex'; 
+function openPrivacySetting() {
+    document.getElementById('privacySettingModal').style.display = 'flex';
 }
 
-function openDownloadSetting() { 
-    document.getElementById('downloadSettingModal').style.display = 'flex'; 
+function openDownloadSetting() {
+    document.getElementById('downloadSettingModal').style.display = 'flex';
 }
 
 function saveAccountSetting(type) {
-    const val = type === 'privacy' 
+    const val = type === 'privacy'
         ? document.querySelector('input[name="videoPrivacy"]:checked').value
         : document.querySelector('input[name="videoDownload"]:checked').value;
-    
+
     fetch('/api/settings/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: localStorage.getItem('streamVibeActiveUser'), field: type, value: val })
-    }).then(r=>r.json()).then(d=>{
+    }).then(r => r.json()).then(d => {
         document.getElementById(type === 'privacy' ? 'privacySettingModal' : 'downloadSettingModal').style.display = 'none';
         openAlert("Thành công", `Đã lưu cài đặt ${type === 'privacy' ? 'Riêng tư' : 'Tải video'}! Hệ thống sẽ cập nhật sau vài giây.`, "success");
         setTimeout(() => window.location.reload(), 2000);
@@ -1162,7 +1205,7 @@ function saveAccountSetting(type) {
 }
 
 // --- HÀM XEM ẢNH ĐẠI DIỆN PHÓNG TO ---
-window.viewFullSizeAvatar = function() {
+window.viewFullSizeAvatar = function () {
     const avatarSrc = document.getElementById('profileEditAvatar').src;
     if (avatarSrc && avatarSrc !== window.location.href) {
         document.getElementById('fullSizeViewerImage').src = avatarSrc;
@@ -1170,11 +1213,11 @@ window.viewFullSizeAvatar = function() {
     }
 };
 
-window.closeImageViewer = function(event) {
+window.closeImageViewer = function (event) {
     if (event) {
         event.stopPropagation();
         // Bấm vào ảnh thì không tắt, chỉ tắt khi bấm ra ngoài viền đen hoặc bấm dấu X
-        if (event.target.id === 'fullSizeViewerImage') return; 
+        if (event.target.id === 'fullSizeViewerImage') return;
     }
     document.getElementById('imageViewerModal').style.display = 'none';
     setTimeout(() => { document.getElementById('fullSizeViewerImage').src = ''; }, 300);
@@ -1182,63 +1225,63 @@ window.closeImageViewer = function(event) {
 
 // CẬP NHẬT GIAO DIỆN HIỂN THỊ TÊN MỚI
 // --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ KÉO ẢNH BÌA + AVATAR RA TRANG CHỦ ---
-window.loadSettingsInfo = function() {
+window.loadSettingsInfo = function () {
     if (!activeUser) return;
-    
+
     // 1. Lấy thông tin Tên hiển thị
-    document.getElementById('settingUsername').innerText = activeUser; 
+    document.getElementById('settingUsername').innerText = activeUser;
     let displayName = activeUser;
     if (window.allUsersDB && window.allUsersDB.length > 0) {
         const me = window.allUsersDB.find(u => u.username === activeUser);
         if (me && me.display_name) displayName = me.display_name;
     }
-    
+
     // Cập nhật tên trong Cài Đặt
     if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
     if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
     if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
-    
+
     // 2. Cập nhật Avatar trong Cài đặt và Trang chủ
     const myAvatar = getAvatarUrl(activeUser);
     if (document.getElementById('profileEditAvatar')) document.getElementById('profileEditAvatar').src = myAvatar;
     if (document.getElementById('dashboardBannerAvatar')) document.getElementById('dashboardBannerAvatar').src = myAvatar;
-    
+
     // 3. Cập nhật Tên và Chức vụ ngoài Ảnh bìa trang chủ
     if (document.getElementById('dashboardBannerName')) document.getElementById('dashboardBannerName').innerText = displayName;
-    
+
     const bannerRole = document.getElementById('dashboardBannerRole');
     if (bannerRole) {
         const roleCode = getUserRole(activeUser);
         bannerRole.innerText = roleCode === 'superadmin' ? '👑 Tổng Tư Lệnh' : (roleCode === 'admin' ? '🛡️ Quản trị viên' : (roleCode === 'statadmin' ? '📊 Quản lý Thống kê' : '👤 Thành viên'));
     }
-    
+
     // 4. ĐỌC VÀ HIỂN THỊ ẢNH BÌA TỪ LOCALSTORAGE
     let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
     let userBanner = banners[activeUser];
-    if(userBanner) {
-        if(document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
-        
+    if (userBanner) {
+        if (document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
+
         const mainBanner = document.getElementById('mainDashboardBanner');
-        if(mainBanner) {
+        if (mainBanner) {
             mainBanner.style.backgroundImage = `url(${userBanner})`;
             mainBanner.style.backgroundSize = 'cover';
             mainBanner.style.backgroundPosition = 'center';
         }
     }
-    
+
     // 5. Số điện thoại
-    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
-    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {};
+    if (document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
 
 // HÀM XỬ LÝ NÚT BẤM ĐỔI TÊN
-window.submitChangeName = function() {
+window.submitChangeName = function () {
     const newName = document.getElementById('newNameInput').value.trim();
     if (!newName) {
         openAlert("Lỗi", "Vui lòng nhập tên mới!", "error");
         return;
     }
-    
+
     fetch('/api/settings/change-name', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: activeUser, newName: newName })
@@ -1254,31 +1297,34 @@ window.submitChangeName = function() {
 }
 
 // --- HÀM TẢI VÀ THAY ĐỔI ẢNH BÌA (ĐÃ NÂNG CẤP) ---
-window.changeBanner = function(input) {
+// =========================================================================
+// HÀM TẢI VÀ THAY ĐỔI ẢNH BÌA (ĐÃ BỎ LỚP PHỦ MÀU)
+// =========================================================================
+window.changeBanner = function (input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const base64Image = e.target.result;
-            
+
             // Lưu vào LocalStorage
             let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
             banners[activeUser] = base64Image;
             localStorage.setItem('streamVibeBanners', JSON.stringify(banners));
-            
+
             // Cập nhật giao diện bên trong Cài đặt
-            if(document.getElementById('profileEditBannerPreview')) {
+            if (document.getElementById('profileEditBannerPreview')) {
                 document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${base64Image})`;
             }
-            
-            // CẬP NHẬT TRÀN TOÀN BỘ KHUNG Ở TRANG CHỦ
+
+            // CẬP NHẬT TRÀN TOÀN BỘ KHUNG Ở TRANG CHỦ (Chỉ dùng url, bỏ gradient)
             const mainBanner = document.querySelector('.hero-banner-new');
-            if(mainBanner) {
-                // Giữ lại lớp gradient màu xanh tím
-                mainBanner.style.backgroundImage = `linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(59, 130, 246, 0.6) 100%), url(${base64Image})`;
+            if (mainBanner) {
+                mainBanner.style.backgroundImage = `url(${base64Image})`;
                 mainBanner.style.backgroundSize = 'cover';
                 mainBanner.style.backgroundPosition = 'center';
+                mainBanner.style.backgroundRepeat = 'no-repeat';
             }
-            
+
             openAlert("Thành công", "Đã cập nhật ảnh bìa mới cho tài khoản của bạn!", "success");
         }
         reader.readAsDataURL(input.files[0]);
@@ -1286,42 +1332,84 @@ window.changeBanner = function(input) {
 }
 
 // --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ KÉO ẢNH BÌA RA (ĐÃ NÂNG CẤP) ---
-window.loadSettingsInfo = function() {
+window.loadSettingsInfo = function () {
     if (!activeUser) return;
-    document.getElementById('settingUsername').innerText = activeUser; 
-    
+    document.getElementById('settingUsername').innerText = activeUser;
+
     let displayName = activeUser;
     if (window.allUsersDB && window.allUsersDB.length > 0) {
         const me = window.allUsersDB.find(u => u.username === activeUser);
         if (me && me.display_name) displayName = me.display_name;
     }
-    
+
     if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
     if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
     if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
-    
+
     document.getElementById('profileEditAvatar').src = getAvatarUrl(activeUser);
-    
+    if (document.getElementById('dashboardBannerAvatar')) {
+        document.getElementById('dashboardBannerAvatar').src = getAvatarUrl(activeUser);
+    }
+
     // ĐỌC VÀ HIỂN THỊ ẢNH BÌA CỦA NGƯỜI NÀY
     let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
     let userBanner = banners[activeUser];
-    if(userBanner) {
-        if(document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
-        
+    if (userBanner) {
+        if (document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
+
         const mainBanner = document.getElementById('mainDashboardBanner');
-        if(mainBanner) {
+        if (mainBanner) {
             mainBanner.style.backgroundImage = `url(${userBanner})`;
             mainBanner.style.backgroundSize = 'cover';
             mainBanner.style.backgroundPosition = 'center';
-            
+
             // Tự động ẩn chữ nếu có ảnh bìa
             const h2 = mainBanner.querySelector('h2');
             const p = mainBanner.querySelector('p');
-            if(h2) h2.style.display = 'none';
-            if(p) p.style.display = 'none';
+            if (h2) h2.style.display = 'none';
+            if (p) p.style.display = 'none';
         }
     }
-    
-    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {}; 
-    if(document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
+
+    let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {};
+    if (document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
+
+// --- ĐỒNG BỘ TÊN RA BANNER TRANG CHỦ ---
+setInterval(() => {
+    // Tự động tìm cái tên đang hiển thị ở thanh Menu hoặc Cài đặt để copy sang
+    const tenMenu = document.getElementById('settingUsername');
+    const tenHienTai = tenMenu ? tenMenu.innerText : null;
+    const tenMoi = document.getElementById('ten-sieu-cap-moi');
+
+    // Nếu tìm thấy tên, ép hiển thị ngay lập tức
+    if (tenHienTai && tenMoi && tenMoi.innerText !== tenHienTai && tenHienTai !== "Đang tải...") {
+        tenMoi.innerText = tenHienTai;
+    }
+}, 500); // Quét 0.5 giây 1 lần, đổi tên trong Cài đặt là ngoài này tự đổi theo
+
+
+// ==================================================
+// XỬ LÝ NHẬP MÃ XEM CHUNG TỪ TRANG CHỦ
+// ==================================================
+window.joinRoomFromHome = function () {
+    const inputCode = document.getElementById('homeRoomInput').value.trim();
+    if (!inputCode) {
+        alert("Vui lòng dán mã phòng vào ô trống!");
+        return;
+    }
+
+    // Mã chuẩn sẽ có dấu gạch dưới để tách ID Video (Ví dụ: ROOM-1234_VideoID)
+    if (inputCode.includes('_')) {
+        const parts = inputCode.split('_');
+        const videoId = parts.slice(1).join('_'); // Lấy phần đuôi làm ID Video
+
+        // Lưu toàn bộ mã vào bộ nhớ để sang trang xem nó tự động kết nối
+        localStorage.setItem('streamVibeSyncRoom', inputCode.toUpperCase());
+
+        // Dùng đĩa bay, bay thẳng tới trang Video đó luôn!
+        window.location.href = '/player.html?id=' + videoId;
+    } else {
+        alert("Mã phòng không hợp lệ! Mã xem chung chuẩn phải có dấu gạch dưới (Ví dụ: ROOM-1234_abc). Vui lòng copy chính xác mã bạn bè gửi.");
+    }
+};

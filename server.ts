@@ -6,6 +6,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import mysql, { Connection, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import nodemailer from 'nodemailer';
 
 const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const ffprobeInstaller = require('@ffprobe-installer/ffprobe');
@@ -21,6 +22,15 @@ const io = new Server(server);
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/videos', express.static('output'));
+
+// CẤU HÌNH GỬI EMAIL
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'kuvyog7v7@gmail.com', 
+        pass: 'agsehjzbwfpjydbq'  // ĐIỀN MẬT KHẨU ỨNG DỤNG VÀO ĐÂY
+    }
+});
 // =========================================================================
 // PHẦN 1: KẾT NỐI CƠ SỞ DỮ LIỆU MYSQL (XAMPP)
 // =========================================================================
@@ -175,24 +185,39 @@ app.post('/api/users/:username/follow', async (req: Request, res: Response): Pro
         const targetUser = req.params.username;
         const { currentUser } = req.body;
 
+        if (!currentUser) return res.json({ success: false, message: "Bạn cần đăng nhập để theo dõi." });
         if (targetUser === currentUser) return res.json({ success: false, message: "Không thể tự theo dõi chính mình." });
+
         const [rows] = await db.execute<RowDataPacket[]>('SELECT followers FROM users WHERE username = ?', [targetUser]);
 
         if (rows.length > 0) {
             let followersArr: string[] = [];
-            try { followersArr = JSON.parse(rows[0].followers || '[]'); } catch (e) { }
+            try {
+                // Đã gia cố: Xử lý an toàn khi Dữ liệu bị rỗng
+                const parsed = JSON.parse(rows[0].followers);
+                if (Array.isArray(parsed)) followersArr = parsed;
+            } catch (e) { }
+
             let isFollowing = false;
             if (followersArr.includes(currentUser)) {
-                followersArr = followersArr.filter(u => u !== currentUser);
+                // Nếu đang theo dõi rồi bấm lại -> Hủy theo dõi
+                followersArr = followersArr.filter((u: string) => u !== currentUser);
             } else {
+                // Nếu chưa theo dõi -> Bấm để theo dõi
                 followersArr.push(currentUser);
                 isFollowing = true;
             }
+
             await db.execute('UPDATE users SET followers = ? WHERE username = ?', [JSON.stringify(followersArr), targetUser]);
             res.json({ success: true, isFollowing, followerCount: followersArr.length });
-        } else { res.json({ success: false }); }
+        } else { 
+            res.json({ success: false, message: "Không tìm thấy người dùng." }); 
+        }
 
-    } catch (error) { res.status(500).json({ success: false }); }
+    } catch (error) { 
+        console.error("Lỗi follow:", error);
+        res.status(500).json({ success: false, message: "Lỗi máy chủ!" }); 
+    }
 });
 
 app.get('/api/users/:username/profile', async (req: Request, res: Response): Promise<any> => {
@@ -397,14 +422,14 @@ app.post('/api/forgot-password', async (req: Request, res: Response): Promise<an
         const { username, email, phone } = req.body;
         
         let query = '';
-        let params = [];
+        let params: any[] = [];
         
         // CHỈ check Email HOẶC Phone dựa trên thông tin gửi lên
         if (email) {
-            query = 'SELECT password FROM users WHERE username = ? AND email = ? AND email != ""';
+            query = 'SELECT * FROM users WHERE username = ? AND email = ? AND email != ""';
             params = [username, email];
         } else if (phone) {
-            query = 'SELECT password FROM users WHERE username = ? AND phone = ? AND phone != ""';
+            query = 'SELECT * FROM users WHERE username = ? AND phone = ? AND phone != ""';
             params = [username, phone];
         } else {
             return res.status(400).json({ success: false, message: 'Thiếu thông tin khôi phục!' });
@@ -413,7 +438,33 @@ app.post('/api/forgot-password', async (req: Request, res: Response): Promise<an
         const [rows] = await db.execute<RowDataPacket[]>(query, params);
         
         if (rows.length > 0) {
-            res.json({ success: true, password: rows[0].password });
+            // 1. Tạo ngẫu nhiên một mật khẩu mới (8 ký tự)
+            const newPassword = Math.random().toString(36).slice(-8);
+            
+            // 2. Cập nhật mật khẩu mới đè lên mật khẩu cũ trong Database
+            await db.execute('UPDATE users SET password = ? WHERE username = ?', [newPassword, username]);
+
+            // 3. Gửi mật khẩu mới qua Email
+            if (email) {
+                const mailOptions = {
+                    from: '"StreamVibe Support" <kuvyog7v7@gmail.com>',
+                    to: email,
+                    subject: 'Khôi phục mật khẩu tài khoản StreamVibe',
+                    text: `Xin chào ${username}\nMật khẩu mới của bạn là: ${newPassword}\nVui lòng đăng nhập hệ thống và tiến hành đổi mật khẩu ngay nhé!`
+                };
+                
+                transporter.sendMail(mailOptions, (error, info) => {
+                    if (error) console.log("❌ Lỗi gửi email: ", error);
+                    else console.log("✅ Email đã được gửi thành công: " + info.response);
+                });
+            } else if (phone) {
+                // Lưu ý: Để gửi SMS thật, bạn cần mua API của Twilio hoặc SpeedSMS (tốn phí).
+                // Ở đây mình mô phỏng gửi SMS bằng cách in ra Terminal của Server.
+                console.log(`[MÔ PHỎNG SMS] Đã gửi SMS tới SĐT ${phone}: Mật khẩu mới của ${username} là ${newPassword}`);
+            }
+
+            // 4. Báo cho Frontend biết là đã xong (TUYỆT ĐỐI KHÔNG GỬI KÈM MẬT KHẨU XUỐNG DƯỚI)
+            res.json({ success: true, message: 'Mật khẩu mới đã được gửi!' });
         } else {
             res.status(400).json({ success: false, message: 'Thông tin xác nhận không đúng! Vui lòng thử lại.' });
         }
