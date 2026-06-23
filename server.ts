@@ -514,20 +514,72 @@ app.get('/api/videos', async (req: Request, res: Response): Promise<any> => {
 });
 
 app.post('/api/videos/:id/view', async (req: Request, res: Response): Promise<any> => {
-
     try {
         if (!db) return res.json({ success: false });
-        const { username } = req.body;
-        const [rows] = await db.execute<RowDataPacket[]>('SELECT views FROM videos WHERE videoId = ?', [req.params.id]);
-        if (rows.length > 0 && username) {
-            let viewsArr: string[] = JSON.parse(rows[0].views || '[]');
-            if (!viewsArr.includes(username)) {
-                viewsArr.push(username);
-                await db.execute('UPDATE videos SET views = ? WHERE videoId = ?', [JSON.stringify(viewsArr), req.params.id])
+        
+        const videoId = req.params.id;
+        // Dùng username nếu đã đăng nhập. Nếu khách vãng lai (không đăng nhập), dùng IP của họ để nhận diện
+        const viewerId = req.body.username || req.ip || 'anonymous_guest';
+        const COOLDOWN_HOURS = 12; // Khoảng thời gian đóng băng view (12 tiếng)
+
+        const now = new Date();
+
+        // 1. Kiểm tra "Cuốn sổ lịch sử" (Bảng video_view_history ở Bước 1)
+        const [historyRows]: any = await db.execute<RowDataPacket[]>(
+            'SELECT last_viewed FROM video_view_history WHERE video_id = ? AND viewer_id = ?',
+            [videoId, viewerId]
+        );
+
+        let shouldCountView = false;
+
+        if (historyRows.length === 0) {
+            // Lần đầu tiên người này xem video -> Cho phép cộng view
+            shouldCountView = true;
+            await db.execute(
+                'INSERT INTO video_view_history (video_id, viewer_id, last_viewed) VALUES (?, ?, ?)',
+                [videoId, viewerId, now]
+            );
+        } else {
+            // Đã từng xem, kiểm tra xem đã qua 12 tiếng chưa
+            const lastViewed = new Date(historyRows[0].last_viewed);
+            const diffHours = Math.abs(now.getTime() - lastViewed.getTime()) / (1000 * 60 * 60);
+
+            if (diffHours >= COOLDOWN_HOURS) {
+                // Đã qua 12 tiếng -> Cho phép cộng thêm view & Cập nhật lại mốc thời gian
+                shouldCountView = true;
+                await db.execute(
+                    'UPDATE video_view_history SET last_viewed = ? WHERE video_id = ? AND viewer_id = ?',
+                    [now, videoId, viewerId]
+                );
             }
         }
-        res.json({ success: true });
-    } catch (error) { res.status(500).json({ success: false }); }
+
+        // 2. Nếu vượt qua vòng kiểm tra (hợp lệ), tiến hành TĂNG VIEW vào bảng videos
+        if (shouldCountView) {
+            const [videoRows] = await db.execute<RowDataPacket[]>('SELECT views FROM videos WHERE videoId = ?', [videoId]);
+            
+            if (videoRows.length > 0) {
+                let viewsArr: string[] = JSON.parse(videoRows[0].views || '[]');
+                
+                // Đẩy thông tin người xem vào mảng. 
+                // Cho phép trùng tên (VD: mảng có 2 chữ 'lam' nghĩa là Lâm đã xem 2 lần cách nhau 12 tiếng)
+                // Nếu là khách, gắn thêm thời gian để phân biệt
+                const viewEntry = req.body.username ? req.body.username : `guest_${Date.now()}`;
+                viewsArr.push(viewEntry);
+
+                // Lưu mảng mới đã dài hơn vào database
+                await db.execute('UPDATE videos SET views = ? WHERE videoId = ?', [JSON.stringify(viewsArr), videoId]);
+            }
+            return res.json({ success: true, viewAdded: true });
+        }
+
+        // Nếu spam F5 chưa đủ 12 tiếng, trả về thành công nhưng viewAdded = false (không cộng)
+        res.json({ success: true, viewAdded: false });
+
+    } catch (error) { 
+        console.error('Lỗi API đếm view:', error);
+        res.status(500).json({ success: false }); 
+    }
 });
 
 app.get('/api/notifications', async (req: Request, res: Response): Promise<any> => {

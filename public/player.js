@@ -229,11 +229,11 @@ async function openUserProfile(username) {
             let follows = JSON.parse(localStorage.getItem('streamVibeFollows')) || {};
             let localFollowers = follows[username] || [];
             let isFollowingLocal = localFollowers.includes(activeU);
-            
+
             let finalCount = Math.max(data.followerCount || 0, localFollowers.length);
             const fCountEl = document.getElementById('profileFollowerCount');
             if (fCountEl) fCountEl.innerText = finalCount;
-            
+
             const btnFollow = document.getElementById('btnFollowUser');
             if (btnFollow) {
                 if (isFollowingLocal || data.isFollowing) {
@@ -246,20 +246,26 @@ async function openUserProfile(username) {
             }
 
             // 2. KHÔI PHỤC DANH SÁCH VIDEO (CÓ TÍNH NĂNG TỰ TÌM KIẾM TRONG KHO TỔNG)
-            let videoList = data.videos || data.userVideos || []; 
+            let videoList = data.videos || data.userVideos || [];
 
             // PHÉP THUẬT Ở ĐÂY: Nếu API cá nhân báo 0 video, ta tự quét từ Kho Server Tổng!
             if (videoList.length === 0) {
                 try {
                     const allRes = await fetch('/api/videos');
-                    const allVideos = await allRes.json();
-                    if (Array.isArray(allVideos)) {
-                        videoList = allVideos.filter(v => 
-                            (v.uploader && v.uploader.toLowerCase() === username.toLowerCase()) || 
+                    const allData = await allRes.json(); // Lấy Object trả về từ API
+
+                    // Trích xuất đúng mảng videos từ Object (Sửa lỗi Array.isArray)
+                    const videoArray = Array.isArray(allData) ? allData : (allData.videos || []);
+
+                    if (Array.isArray(videoArray)) {
+                        videoList = videoArray.filter(v =>
+                            (v.uploader && v.uploader.toLowerCase() === username.toLowerCase()) ||
                             (v.author && v.author.toLowerCase() === username.toLowerCase())
                         );
                     }
-                } catch(e) { console.log("Không thể quét kho tổng"); }
+                } catch (e) {
+                    console.log("Không thể quét kho tổng");
+                }
             }
 
             // In số lượng video thực tế sau khi đã quét
@@ -280,14 +286,14 @@ async function openUserProfile(username) {
                 videoGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(180px, 1fr))';
                 videoGrid.style.gap = '15px';
                 videoGrid.style.marginTop = '25px';
-                videoGrid.style.maxHeight = '400px'; 
-                videoGrid.style.overflowY = 'auto';  
+                videoGrid.style.maxHeight = '400px';
+                videoGrid.style.overflowY = 'auto';
                 videoGrid.style.paddingRight = '5px';
 
                 if (videoList.length === 0) {
                     videoGrid.innerHTML = '<p style="color:var(--text-secondary); font-size: 15px; grid-column: 1/-1; text-align: center; padding: 20px;">Người dùng này chưa tải lên video nào.</p>';
                 } else {
-                    videoGrid.innerHTML = ''; 
+                    videoGrid.innerHTML = '';
                     videoList.forEach(video => {
                         const id = video.videoId || video.id;
                         const title = video.title || 'Video không tên';
@@ -304,7 +310,7 @@ async function openUserProfile(username) {
                         card.onmouseover = () => { card.style.borderColor = '#3b82f6'; card.style.transform = 'translateY(-4px)'; card.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)'; };
                         card.onmouseout = () => { card.style.borderColor = 'rgba(255,255,255,0.05)'; card.style.transform = 'translateY(0)'; card.style.boxShadow = 'none'; };
                         card.onclick = () => { window.location.href = '/player.html?id=' + id; };
-                        
+
                         card.innerHTML = `
                             <div style="width: 100%; aspect-ratio: 16/9; border-radius: 8px; background: ${thumbBg}; margin-bottom: 10px;"></div>
                             <div style="font-size: 14px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${title}</div>
@@ -443,10 +449,20 @@ async function initPlayer() {
                 }
 
                 // Load thông tin uploader
+                // Load thông tin uploader
                 const uploaderNameEl = document.getElementById('uploaderName');
-                if (uploaderNameEl) uploaderNameEl.innerText = video.uploader;
+                if (uploaderNameEl) {
+                    uploaderNameEl.innerText = video.uploader;
+                    // Thêm dòng này để truyền đúng tên người đăng khi bấm vào Tên
+                    uploaderNameEl.onclick = () => openUserProfile(video.uploader);
+                }
+
                 const avatarEl = document.getElementById('uploaderAvatar');
-                if (avatarEl) avatarEl.src = getAvatarUrl(video.uploader);
+                if (avatarEl) {
+                    avatarEl.src = getAvatarUrl(video.uploader);
+                    // Thêm dòng này để truyền đúng tên người đăng khi bấm vào Ảnh
+                    avatarEl.onclick = () => openUserProfile(video.uploader);
+                }
 
                 window.roomOwner = video.uploader;
 
@@ -583,8 +599,11 @@ async function renderChatBox() {
 function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isError = false) {
     if (!chatBox) return;
     if (text === '❤️ Đã thả tim video của bạn') return;
-    const msgEl = document.createElement('div');
 
+    // BỔ SUNG: Kiểm tra nếu tin nhắn này đã tồn tại trên màn hình thì bỏ qua, chống trùng lặp
+    if (chatId && document.getElementById('chat-' + chatId)) return;
+
+    const msgEl = document.createElement('div');
     // Tạo ID ngẫu nhiên nếu chưa có
     if (!chatId) chatId = 'temp-' + Math.random().toString(36).substr(2, 9);
     msgEl.id = 'chat-' + chatId;
@@ -597,7 +616,6 @@ function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isE
         msgEl.className = 'chat-message';
         // Gắn thẻ tên ẩn để hệ thống biết tin nhắn này của ai
         msgEl.setAttribute('data-username', user);
-
         const avatar = getAvatarUrl(user);
 
         let deleteHtml = '';
@@ -615,15 +633,14 @@ function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isE
         let actualText = text;
         let isReply = false;
         let parentReplyBox = null;
-
         // 🚨 THUẬT TOÁN AUTO-THREAD: Tự động móc nối câu trả lời vào bình luận gốc
         if (text.startsWith('@')) {
-            const match = text.match(/^@([^\s:]+)[\s:]+(.*)/); // Quét xem có tag tên không
+            const match = text.match(/^@([^\s:]+)[\s:]+(.*)/);
+            // Quét xem có tag tên không
             if (match) {
                 const targetUser = match[1];
                 // Tô xanh cái tên được tag cho đẹp
                 actualText = `<span style="color: var(--accent-blue); font-weight: 700;">@${targetUser}</span> ` + match[2];
-
                 // Chạy ngược lên trên để tìm tin nhắn gần nhất của người bị tag
                 const allMsgs = document.querySelectorAll('.chat-message');
                 for (let i = allMsgs.length - 1; i >= 0; i--) {
@@ -639,6 +656,9 @@ function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isE
             }
         }
 
+        // ========================================================
+        // (GIỮ NGUYÊN ĐOẠN msgEl.innerHTML = `...` CŨ CỦA BẠN Ở DƯỚI)
+        // ========================================================
         msgEl.innerHTML = `
             <img src="${avatar}" class="chat-avatar" alt="Avatar" onclick="openUserProfile('${user}')" onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'">
             <div class="chat-content-bubble" style="flex-grow: 1;">
@@ -747,6 +767,9 @@ async function saveAndDisplayMessage(user, text) {
         const data = await res.json();
 
         if (data.success) {
+            // BỔ SUNG: Hiển thị tin nhắn ngay lập tức cho chính người vừa gửi
+            appendChatMessageToDOM(user, text, data.chat._id);
+
             socket.emit('send_chat_realtime', {
                 videoId: videoId,
                 user: user,
@@ -754,7 +777,9 @@ async function saveAndDisplayMessage(user, text) {
                 chatId: data.chat._id
             });
         }
-    } catch (error) { console.error("Lỗi gửi tin nhắn:", error); }
+    } catch (error) { 
+        console.error("Lỗi gửi tin nhắn:", error); 
+    }
 }
 
 function sendReaction(emoji) {
@@ -871,19 +896,53 @@ socket.on('room_notification', (msg) => {
     }
 });
 
+// Biến chặn spam trong cùng 1 lần mở tab (tránh việc Pause/Play liên tục bị gọi API nhiều lần)
+let hasCountedViewThisSession = false;
+
 if (videoElement) {
     videoElement.addEventListener('play', () => {
+        // [BỔ SUNG] 1. GỌI API TĂNG VIEW KHI VIDEO THỰC SỰ BẮT ĐẦU CHẠY
+        if (!hasCountedViewThisSession) {
+            hasCountedViewThisSession = true; // Khóa lại, lần Play sau không gọi nữa
+            
+            const activeU = localStorage.getItem('streamVibeActiveUser') || ''; 
+            
+            fetch(`/api/videos/${videoId}/view`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: activeU })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.viewAdded) {
+                    // Nếu server trả về viewAdded = true (view hợp lệ) -> Tự động +1 view ngay trên giao diện
+                    const viewsEl = document.getElementById('videoViews');
+                    if (viewsEl) {
+                        let currentViews = parseInt(viewsEl.innerText) || 0;
+                        viewsEl.innerText = (currentViews + 1) + ' lượt xem';
+                    }
+                }
+            })
+            .catch(e => console.error('Lỗi hệ thống đếm view:', e));
+        }
+
+        // [GIỮ NGUYÊN] 2. MÃ CŨ CỦA BẠN: ĐỒNG BỘ PHÒNG XEM CHUNG
         if (inCinemaRoom && !isRemoteAction) {
             socket.emit('video_action', { roomCode: currentRoomCode, action: 'play', time: videoElement.currentTime });
-            addTerminalLog(`[Sync Room] TRUYỀN: Gửi lệnh Phát Video`);
+            if (typeof addTerminalLog === 'function') {
+                addTerminalLog(`[Sync Room] TRUYỀN: Gửi lệnh Phát Video`);
+            }
         }
         isRemoteAction = false;
     });
 
     videoElement.addEventListener('pause', () => {
+        // [GIỮ NGUYÊN] MÃ CŨ CỦA BẠN: XỬ LÝ TẠM DỪNG PHÒNG XEM CHUNG
         if (inCinemaRoom && !isRemoteAction) {
             socket.emit('video_action', { roomCode: currentRoomCode, action: 'pause', time: videoElement.currentTime });
-            addTerminalLog(`[Sync Room] TRUYỀN: Gửi lệnh Tạm Dừng`);
+            if (typeof addTerminalLog === 'function') {
+                addTerminalLog(`[Sync Room] TRUYỀN: Gửi lệnh Tạm Dừng`);
+            }
         }
         isRemoteAction = false;
     });
@@ -1013,12 +1072,14 @@ socket.on('receive_private_message', (data) => {
 
 window.onload = () => {
     fetch('/api/users').then(res => res.json()).then(data => { if (data.success) window.allUsersDB = data.users; });
-
     addTerminalLog("Hệ thống StreamVibe đã sẵn sàng.");
     startAdvancedSimulations();
 
     initPlayer();
     updateMsgBadge(); // <--- ĐẢM BẢO CHẠY UPDATE LÚC MỞ TRANG XEM PHIM
+
+    // BỔ SUNG: Gọi hàm này để tải toàn bộ bình luận từ CSDL khi vừa vào trang
+    renderChatBox();
 
     appendChatMessageToDOM('Hệ Thống', `Chào mừng ${activeUser} đến với StreamVibe. Bạn có thể bình luận ở đây nhé!`, null, true);
 };
@@ -1267,7 +1328,7 @@ window.createCinemaRoom = function () {
 function fetchProfileVideos(username) {
     const countEl = document.getElementById('profileVideoCount');
     const gridEl = document.getElementById('profileVideoGrid');
-    
+
     if (!gridEl) return;
 
     // Hiển thị trạng thái đang tải
@@ -1279,7 +1340,7 @@ function fetchProfileVideos(username) {
         .then(videos => {
             // Điền số lượng video vào trong dấu ngoặc tròn (Ví dụ: Các video (5))
             if (countEl) countEl.innerText = videos.length;
-            
+
             // Xóa chữ "Đang tải"
             gridEl.innerHTML = '';
 
