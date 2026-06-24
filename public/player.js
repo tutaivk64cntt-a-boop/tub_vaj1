@@ -777,8 +777,8 @@ async function saveAndDisplayMessage(user, text) {
                 chatId: data.chat._id
             });
         }
-    } catch (error) { 
-        console.error("Lỗi gửi tin nhắn:", error); 
+    } catch (error) {
+        console.error("Lỗi gửi tin nhắn:", error);
     }
 }
 
@@ -904,26 +904,26 @@ if (videoElement) {
         // [BỔ SUNG] 1. GỌI API TĂNG VIEW KHI VIDEO THỰC SỰ BẮT ĐẦU CHẠY
         if (!hasCountedViewThisSession) {
             hasCountedViewThisSession = true; // Khóa lại, lần Play sau không gọi nữa
-            
-            const activeU = localStorage.getItem('streamVibeActiveUser') || ''; 
-            
+
+            const activeU = localStorage.getItem('streamVibeActiveUser') || '';
+
             fetch(`/api/videos/${videoId}/view`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: activeU })
             })
-            .then(res => res.json())
-            .then(data => {
-                if (data.viewAdded) {
-                    // Nếu server trả về viewAdded = true (view hợp lệ) -> Tự động +1 view ngay trên giao diện
-                    const viewsEl = document.getElementById('videoViews');
-                    if (viewsEl) {
-                        let currentViews = parseInt(viewsEl.innerText) || 0;
-                        viewsEl.innerText = (currentViews + 1) + ' lượt xem';
+                .then(res => res.json())
+                .then(data => {
+                    if (data.viewAdded) {
+                        // Nếu server trả về viewAdded = true (view hợp lệ) -> Tự động +1 view ngay trên giao diện
+                        const viewsEl = document.getElementById('videoViews');
+                        if (viewsEl) {
+                            let currentViews = parseInt(viewsEl.innerText) || 0;
+                            viewsEl.innerText = (currentViews + 1) + ' lượt xem';
+                        }
                     }
-                }
-            })
-            .catch(e => console.error('Lỗi hệ thống đếm view:', e));
+                })
+                .catch(e => console.error('Lỗi hệ thống đếm view:', e));
         }
 
         // [GIỮ NGUYÊN] 2. MÃ CŨ CỦA BẠN: ĐỒNG BỘ PHÒNG XEM CHUNG
@@ -947,7 +947,6 @@ if (videoElement) {
         isRemoteAction = false;
     });
 }
-
 socket.on('sync_video_action', (data) => {
     if (inCinemaRoom) {
         // BẢN PRO: NẾU NHẬN ĐƯỢC LỆNH CHUYỂN VIDEO TỪ NGƯỜI KHÁC

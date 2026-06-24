@@ -734,23 +734,31 @@
         </div>
 
         <div id="publicVideos" class="tab-content">
-            <div style="position: sticky; top: -30px; margin: -30px -40px 25px -40px; padding: 30px 40px 15px 40px; z-index: 999; background: rgba(8, 38, 68, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
-            
-            <div style="margin: 0; padding: 0;">
-                <h2 style="font-size: 24px; color: #fff; font-weight: 700; margin: 0;">Kho Video Khám Phá Chung <span style="font-size: 12px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 10px;">PUBLIC VIDEOS</span></h2>
-                <p style="color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 0; font-weight: bold;">Tất cả video trên Server</p>
+            <div
+                style="position: sticky; top: -30px; margin: -30px -40px 25px -40px; padding: 30px 40px 15px 40px; z-index: 999; background: rgba(8, 38, 68, 0.95); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.1); display: flex; justify-content: space-between; align-items: center;">
+
+                <div style="margin: 0; padding: 0;">
+                    <h2 style="font-size: 24px; color: #fff; font-weight: 700; margin: 0;">Kho Video Khám Phá Chung
+                        <span
+                            style="font-size: 12px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 10px;">PUBLIC
+                            VIDEOS</span></h2>
+                    <p style="color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 0; font-weight: bold;">
+                        Tất cả video trên Server</p>
+                </div>
+
+                <div
+                    style="display: flex; gap: 8px; background: rgba(15, 23, 42, 0.7); padding: 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+                    <input type="text" id="homeRoomInput" placeholder="Dán mã xem chung vào đây..."
+                        style="width: 260px; padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; outline: none; font-size: 13px;">
+                    <button onclick="joinRoomFromHome()"
+                        style="padding: 10px 18px; border-radius: 8px; border: none; background: #8b5cf6; color: #fff; font-weight: bold; cursor: pointer; transition: 0.2s;">
+                        <i class="fa-solid fa-plane-departure"></i> Bay Tới
+                    </button>
+                </div>
+
             </div>
 
-            <div style="display: flex; gap: 8px; background: rgba(15, 23, 42, 0.7); padding: 6px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-                <input type="text" id="homeRoomInput" placeholder="Dán mã xem chung vào đây..." style="width: 260px; padding: 10px 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.4); color: #fff; outline: none; font-size: 13px;">
-                <button onclick="joinRoomFromHome()" style="padding: 10px 18px; border-radius: 8px; border: none; background: #8b5cf6; color: #fff; font-weight: bold; cursor: pointer; transition: 0.2s;">
-                    <i class="fa-solid fa-plane-departure"></i> Bay Tới
-                </button>
-            </div>
-            
-        </div>
-
-        <div class="video-grid" id="publicVideoGrid"></div>
+            <div class="video-grid" id="publicVideoGrid"></div>
         </div>
 
         <div id="hls" class="tab-content">
@@ -1111,5 +1119,4 @@
     </div>
     <script src="index.js?v=999"></script>
 </body>
-
 </html>

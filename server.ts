@@ -27,7 +27,7 @@ app.use('/videos', express.static('output'));
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'kuvyog7v7@gmail.com', 
+        user: 'kuvyog7v7@gmail.com',
         pass: 'agsehjzbwfpjydbq'  // ĐIỀN MẬT KHẨU ỨNG DỤNG VÀO ĐÂY
     }
 });
@@ -54,10 +54,10 @@ async function initMySQL(): Promise<void> {
         try { await db.execute('ALTER TABLE users ADD COLUMN following LONGTEXT'); } catch (e) { }
         try { await db.execute('ALTER TABLE users ADD COLUMN email VARCHAR(255) DEFAULT ""'); } catch (e) { }
         try { await db.execute('ALTER TABLE users ADD COLUMN phone VARCHAR(50) DEFAULT ""'); } catch (e) { }
-        try { await db.execute('ALTER TABLE users ADD COLUMN privacy_mode VARCHAR(20) DEFAULT "public"'); } catch(e) {}
-        try { await db.execute('ALTER TABLE users ADD COLUMN allow_download VARCHAR(20) DEFAULT "allow"'); } catch(e) {}
-        try { await db.execute('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL'); } catch(e) {}
-        try { await db.execute('ALTER TABLE users ADD COLUMN last_name_change DATETIME DEFAULT NULL'); } catch(e) {}
+        try { await db.execute('ALTER TABLE users ADD COLUMN privacy_mode VARCHAR(20) DEFAULT "public"'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN allow_download VARCHAR(20) DEFAULT "allow"'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN display_name VARCHAR(100) DEFAULT NULL'); } catch (e) { }
+        try { await db.execute('ALTER TABLE users ADD COLUMN last_name_change DATETIME DEFAULT NULL'); } catch (e) { }
         await db.execute(`CREATE TABLE IF NOT EXISTS videos (
             id INT AUTO_INCREMENT PRIMARY KEY,
             videoId VARCHAR(255) UNIQUE NOT NULL,
@@ -131,48 +131,48 @@ io.on('connection', (socket: Socket) => {
 // API ĐỔI TÊN (GIỚI HẠN 30 NGÀY)
 app.post('/api/settings/change-name', async (req: Request, res: Response): Promise<any> => {
     try {
-        if(!db) return res.json({success:false});
+        if (!db) return res.json({ success: false });
         const { username, newName } = req.body;
-        
+
         // 1. Kiểm tra ngày đổi tên gần nhất
         const [rows]: any = await db.execute('SELECT last_name_change FROM users WHERE username = ?', [username]);
-        if(rows.length === 0) return res.json({success:false, message: 'Tài khoản không tồn tại.'});
-        
+        if (rows.length === 0) return res.json({ success: false, message: 'Tài khoản không tồn tại.' });
+
         const lastChange = rows[0].last_name_change;
         if (lastChange) {
             const daysDiff = (new Date().getTime() - new Date(lastChange).getTime()) / (1000 * 3600 * 24);
             if (daysDiff < 30) {
                 const daysLeft = Math.ceil(30 - daysDiff);
-                return res.json({success: false, message: `Hệ thống chỉ cho phép đổi tên 30 ngày 1 lần. Bạn cần đợi thêm ${daysLeft} ngày nữa!`});
+                return res.json({ success: false, message: `Hệ thống chỉ cho phép đổi tên 30 ngày 1 lần. Bạn cần đợi thêm ${daysLeft} ngày nữa!` });
             }
         }
-        
+
         // 2. Cập nhật tên mới và lưu lại thời gian đổi
         await db.execute('UPDATE users SET display_name = ?, last_name_change = NOW() WHERE username = ?', [newName, username]);
-        res.json({success: true});
-    } catch(e) { res.json({success: false, message: 'Lỗi máy chủ!'}); }
+        res.json({ success: true });
+    } catch (e) { res.json({ success: false, message: 'Lỗi máy chủ!' }); }
 });
 
 // API Cập nhật cài đặt Quyền riêng tư & Tải về
 app.post('/api/settings/update', async (req: Request, res: Response): Promise<any> => {
     try {
-        if(!db) return res.json({success:false});
+        if (!db) return res.json({ success: false });
         const { username, field, value } = req.body;
-        if(field === 'privacy') await db.execute('UPDATE users SET privacy_mode = ? WHERE username = ?', [value, username]);
-        if(field === 'download') await db.execute('UPDATE users SET allow_download = ? WHERE username = ?', [value, username]);
-        res.json({success: true});
-    } catch(e) { res.json({success: false}); }
+        if (field === 'privacy') await db.execute('UPDATE users SET privacy_mode = ? WHERE username = ?', [value, username]);
+        if (field === 'download') await db.execute('UPDATE users SET allow_download = ? WHERE username = ?', [value, username]);
+        res.json({ success: true });
+    } catch (e) { res.json({ success: false }); }
 });
 
 // API Lấy danh sách quyền của toàn bộ User (để Frontend kiểm tra)
 app.get('/api/user-permissions', async (req: Request, res: Response): Promise<any> => {
     try {
-        if(!db) return res.json({});
+        if (!db) return res.json({});
         const [rows] = await db.execute<RowDataPacket[]>('SELECT username, privacy_mode, allow_download FROM users');
         const perms: any = {};
         rows.forEach(r => { perms[r.username] = { privacy: r.privacy_mode, download: r.allow_download }; });
         res.json(perms);
-    } catch(e) { res.json({}); }
+    } catch (e) { res.json({}); }
 });
 
 // =========================================================================
@@ -210,13 +210,13 @@ app.post('/api/users/:username/follow', async (req: Request, res: Response): Pro
 
             await db.execute('UPDATE users SET followers = ? WHERE username = ?', [JSON.stringify(followersArr), targetUser]);
             res.json({ success: true, isFollowing, followerCount: followersArr.length });
-        } else { 
-            res.json({ success: false, message: "Không tìm thấy người dùng." }); 
+        } else {
+            res.json({ success: false, message: "Không tìm thấy người dùng." });
         }
 
-    } catch (error) { 
+    } catch (error) {
         console.error("Lỗi follow:", error);
-        res.status(500).json({ success: false, message: "Lỗi máy chủ!" }); 
+        res.status(500).json({ success: false, message: "Lỗi máy chủ!" });
     }
 });
 
@@ -363,6 +363,72 @@ app.get('/api/statistics', async (req: Request, res: Response): Promise<any> => 
     }
 });
 
+// =========================================================
+// API DÀNH RIÊNG CHO THỐNG KÊ ADMIN (CHỈ LẤY TOP 100)
+// =========================================================
+// =========================================================
+// API DÀNH RIÊNG CHO THỐNG KÊ ADMIN (CHỈ LẤY TOP 100)
+// =========================================================
+app.get('/api/admin/top-videos', async (req: Request, res: Response): Promise<any> => {
+    const sortBy = req.query.sortBy || 'views';
+
+    // 1. SỬA LỖI TYPESCRIPT: Bắt buộc phải kiểm tra DB có null hay không
+    if (!db) return res.status(500).json({ success: false, message: 'Chưa kết nối CSDL' });
+
+    try {
+        let sqlQuery = '';
+
+        // 2. SỬA LỖI SQL: Bảng videos không có cột comments, phải JOIN với bảng chats để đếm!
+        if (sortBy === 'views') {
+            sqlQuery = "SELECT * FROM videos ORDER BY JSON_LENGTH(IFNULL(views, '[]')) DESC LIMIT 100";
+        } else if (sortBy === 'likes') {
+            sqlQuery = "SELECT * FROM videos ORDER BY JSON_LENGTH(IFNULL(likes, '[]')) DESC LIMIT 100";
+        } else if (sortBy === 'comments') {
+            // Dùng LEFT JOIN để móc nối 2 bảng và đếm số bình luận
+            sqlQuery = `
+                SELECT v.*, COUNT(c.id) as commentCount 
+                FROM videos v 
+                LEFT JOIN chats c ON v.videoId = c.videoId 
+                GROUP BY v.id 
+                ORDER BY commentCount DESC 
+                LIMIT 100
+            `;
+        } else {
+            sqlQuery = "SELECT * FROM videos ORDER BY id DESC LIMIT 100";
+        }
+
+        const [rows] = await db.query(sqlQuery);
+        res.json({ success: true, videos: rows });
+
+    } catch (error) {
+        console.error('Lỗi SQL, chuyển sang fallback:', error);
+        
+        try {
+            // FALLBACK DỰ PHÒNG: Xử lý an toàn nếu máy chủ MySQL phiên bản quá cũ
+            const [allRows]: any = await db.query("SELECT * FROM videos");
+            
+            if (sortBy === 'comments') {
+                const [chatCounts]: any = await db.query("SELECT videoId, COUNT(id) as c FROM chats GROUP BY videoId");
+                const sorted = allRows.map((v: any) => {
+                    const match = chatCounts.find((c: any) => c.videoId === v.videoId);
+                    return { ...v, commentCount: match ? match.c : 0 };
+                }).sort((a: any, b: any) => b.commentCount - a.commentCount).slice(0, 100);
+                return res.json({ success: true, videos: sorted });
+            }
+
+            const sorted = allRows.sort((a: any, b: any) => {
+                const aLen = JSON.parse(a[sortBy as string] || '[]').length;
+                const bLen = JSON.parse(b[sortBy as string] || '[]').length;
+                return bLen - aLen;
+            }).slice(0, 100);
+            
+            res.json({ success: true, videos: sorted });
+        } catch (fallbackError) {
+            res.status(500).json({ success: false, error: 'Lỗi xử lý hệ thống' });
+        }
+    }
+});
+
 app.put('/api/videos/:id', async (req: Request, res: Response): Promise<any> => {
     try {
 
@@ -401,7 +467,7 @@ app.post('/api/videos/:id/like', async (req: Request, res: Response): Promise<an
 app.post('/api/register', async (req: Request, res: Response): Promise<any> => {
     try {
         if (!db) return res.status(500).json({ success: false, message: 'Chưa kết nối MySQL.' });
-        const { username, password, email, phone } = req.body; 
+        const { username, password, email, phone } = req.body;
         const [rows] = await db.execute<RowDataPacket[]>('SELECT * FROM users WHERE username = ?', [username]);
         if (rows.length > 0) return res.status(400).json({ success: false, message: 'Tên tài khoản này đã có người sử dụng!' });
 
@@ -409,7 +475,7 @@ app.post('/api/register', async (req: Request, res: Response): Promise<any> => {
         const lowerName = username.toLowerCase();
         if (lowerName === 'lam' || lowerName === 'boss') role = 'superadmin';
         else if (lowerName.includes('admin') || lowerName.includes('quanly')) role = 'admin';
-        
+
         await db.execute('INSERT INTO users (username, password, email, phone, role) VALUES (?, ?, ?, ?, ?)', [username, password, email || '', phone || '', role]);
         res.json({ success: true, message: 'Đăng ký thành công!', role: role });
     } catch (error) { res.status(500).json({ success: false, message: 'Lỗi máy chủ.' }); }
@@ -420,10 +486,10 @@ app.post('/api/forgot-password', async (req: Request, res: Response): Promise<an
     try {
         if (!db) return res.status(500).json({ success: false, message: 'Chưa kết nối MySQL.' });
         const { username, email, phone } = req.body;
-        
+
         let query = '';
         let params: any[] = [];
-        
+
         // CHỈ check Email HOẶC Phone dựa trên thông tin gửi lên
         if (email) {
             query = 'SELECT * FROM users WHERE username = ? AND email = ? AND email != ""';
@@ -434,13 +500,13 @@ app.post('/api/forgot-password', async (req: Request, res: Response): Promise<an
         } else {
             return res.status(400).json({ success: false, message: 'Thiếu thông tin khôi phục!' });
         }
-        
+
         const [rows] = await db.execute<RowDataPacket[]>(query, params);
-        
+
         if (rows.length > 0) {
             // 1. Tạo ngẫu nhiên một mật khẩu mới (8 ký tự)
             const newPassword = Math.random().toString(36).slice(-8);
-            
+
             // 2. Cập nhật mật khẩu mới đè lên mật khẩu cũ trong Database
             await db.execute('UPDATE users SET password = ? WHERE username = ?', [newPassword, username]);
 
@@ -452,7 +518,7 @@ app.post('/api/forgot-password', async (req: Request, res: Response): Promise<an
                     subject: 'Khôi phục mật khẩu tài khoản StreamVibe',
                     text: `Xin chào ${username}\nMật khẩu mới của bạn là: ${newPassword}\nVui lòng đăng nhập hệ thống và tiến hành đổi mật khẩu ngay nhé!`
                 };
-                
+
                 transporter.sendMail(mailOptions, (error, info) => {
                     if (error) console.log("❌ Lỗi gửi email: ", error);
                     else console.log("✅ Email đã được gửi thành công: " + info.response);
@@ -516,7 +582,7 @@ app.get('/api/videos', async (req: Request, res: Response): Promise<any> => {
 app.post('/api/videos/:id/view', async (req: Request, res: Response): Promise<any> => {
     try {
         if (!db) return res.json({ success: false });
-        
+
         const videoId = req.params.id;
         // Dùng username nếu đã đăng nhập. Nếu khách vãng lai (không đăng nhập), dùng IP của họ để nhận diện
         const viewerId = req.body.username || req.ip || 'anonymous_guest';
@@ -557,10 +623,10 @@ app.post('/api/videos/:id/view', async (req: Request, res: Response): Promise<an
         // 2. Nếu vượt qua vòng kiểm tra (hợp lệ), tiến hành TĂNG VIEW vào bảng videos
         if (shouldCountView) {
             const [videoRows] = await db.execute<RowDataPacket[]>('SELECT views FROM videos WHERE videoId = ?', [videoId]);
-            
+
             if (videoRows.length > 0) {
                 let viewsArr: string[] = JSON.parse(videoRows[0].views || '[]');
-                
+
                 // Đẩy thông tin người xem vào mảng. 
                 // Cho phép trùng tên (VD: mảng có 2 chữ 'lam' nghĩa là Lâm đã xem 2 lần cách nhau 12 tiếng)
                 // Nếu là khách, gắn thêm thời gian để phân biệt
@@ -576,9 +642,9 @@ app.post('/api/videos/:id/view', async (req: Request, res: Response): Promise<an
         // Nếu spam F5 chưa đủ 12 tiếng, trả về thành công nhưng viewAdded = false (không cộng)
         res.json({ success: true, viewAdded: false });
 
-    } catch (error) { 
+    } catch (error) {
         console.error('Lỗi API đếm view:', error);
-        res.status(500).json({ success: false }); 
+        res.status(500).json({ success: false });
     }
 });
 

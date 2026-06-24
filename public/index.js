@@ -170,7 +170,7 @@ function closeUserProfile() {
     document.getElementById('userProfileModal').style.display = 'none';
 }
 
-window.toggleFollow = async function() {
+window.toggleFollow = async function () {
     try {
         // Đã bọc encodeURIComponent để chống gãy Link khi tên có dấu cách
         const res = await fetch(`/api/users/${encodeURIComponent(currentProfileView)}/follow`, {
@@ -178,7 +178,7 @@ window.toggleFollow = async function() {
             body: JSON.stringify({ currentUser: activeUser })
         });
         const data = await res.json();
-        
+
         if (data.success) {
             document.getElementById('profileFollowerCount').innerText = data.followerCount;
             const btnFollow = document.getElementById('btnFollowUser');
@@ -192,7 +192,7 @@ window.toggleFollow = async function() {
         } else {
             openAlert("Lỗi", data.message || "Không thể theo dõi", "error");
         }
-    } catch(e) {
+    } catch (e) {
         openAlert("Lỗi mạng", "Không kết nối được tới máy chủ", "error");
     }
 }
@@ -260,18 +260,30 @@ function renderMyRankedGrid(sortBy) {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Reset màu nút bấm
+    // 1. Reset màu các nút lọc
     ['btnSortMyViews', 'btnSortMyChats', 'btnSortMyLikes'].forEach(id => {
-        document.getElementById(id).style.background = 'rgba(255,255,255,0.1)';
-        document.getElementById(id).style.color = '#cbd5e1';
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.style.background = 'rgba(255,255,255,0.1)';
+            btn.style.color = '#cbd5e1';
+        }
     });
 
-    // Đổi màu nút được bấm
-    if (sortBy === 'views') { document.getElementById('btnSortMyViews').style.background = '#3b82f6'; document.getElementById('btnSortMyViews').style.color = '#fff'; }
-    else if (sortBy === 'comments') { document.getElementById('btnSortMyChats').style.background = '#ef4444'; document.getElementById('btnSortMyChats').style.color = '#fff'; }
-    else if (sortBy === 'likes') { document.getElementById('btnSortMyLikes').style.background = '#f43f5e'; document.getElementById('btnSortMyLikes').style.color = '#fff'; }
+    // 2. Làm nổi bật nút đang được chọn
+    if (sortBy === 'views') {
+        const btn = document.getElementById('btnSortMyViews');
+        if (btn) { btn.style.background = '#3b82f6'; btn.style.color = '#fff'; }
+    }
+    else if (sortBy === 'comments') {
+        const btn = document.getElementById('btnSortMyChats');
+        if (btn) { btn.style.background = '#ef4444'; btn.style.color = '#fff'; }
+    }
+    else if (sortBy === 'likes') {
+        const btn = document.getElementById('btnSortMyLikes');
+        if (btn) { btn.style.background = '#f43f5e'; btn.style.color = '#fff'; }
+    }
 
-    // Sắp xếp
+    // 3. Tiến hành sắp xếp danh sách
     let sortedList = [...window.myRankedVideos];
     if (sortBy === 'views') sortedList.sort((a, b) => b.viewsCount - a.viewsCount);
     else if (sortBy === 'comments') sortedList.sort((a, b) => b.commentCount - a.commentCount);
@@ -282,16 +294,58 @@ function renderMyRankedGrid(sortBy) {
         return;
     }
 
-    // In thẻ video ra kèm theo huy hiệu Top 1, 2, 3
+    // Giới hạn hiển thị tối đa 20 video
+    sortedList = sortedList.slice(0, 20);
+
+    // 4. In video kèm Huy hiệu Xếp Hạng
     sortedList.forEach((video, index) => {
-        const canDel = true; // Video của mình thì đương nhiên được quyền Xóa
+        const canDel = true;
         const card = createVideoCard(video, activeUser, getUserRole(activeUser), canDel, true);
 
+        // Đảm bảo card có vị trí tương đối để gắn nhãn tuyệt đối vào góc
+        card.style.position = 'relative';
+
+        // --- THIẾT KẾ HUY HIỆU THEO YÊU CẦU ---
+        let badgeText = '';
+        let badgeBg = '';
+
+        if (index === 0) {
+            badgeText = '🏆 #1';
+            badgeBg = 'linear-gradient(135deg, #f59e0b, #fbbf24)'; // Màu Vàng (Gold)
+        } else if (index === 1) {
+            badgeText = '🥈 #2';
+            badgeBg = 'linear-gradient(135deg, #94a3b8, #cbd5e1)'; // Màu Bạc (Silver)
+        } else if (index === 2) {
+            badgeText = '🥉 #3';
+            badgeBg = 'linear-gradient(135deg, #b45309, #d97706)'; // Màu Đồng (Bronze)
+        } else {
+            badgeText = '#' + (index + 1);
+            badgeBg = 'rgba(71, 85, 105, 0.9)'; // Màu Xám xanh mặc định cho các hạng còn lại
+        }
+
         const rankBadge = document.createElement('div');
-        rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index === 0 ? '#fbbf24' : (index === 1 ? '#94a3b8' : (index === 2 ? '#b45309' : '#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2); box-shadow: 0 4px 10px rgba(0,0,0,0.5);`;
-        rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1);
+        // CSS Nội tuyến giúp huy hiệu ghim chặt ở góc trên bên trái, không che mất mặt video
+        rankBadge.style.position = 'absolute';
+        rankBadge.style.top = '10px';
+        rankBadge.style.left = '10px';
+        rankBadge.style.background = badgeBg;
+        rankBadge.style.color = '#fff';
+        rankBadge.style.padding = '4px 10px';
+        rankBadge.style.borderRadius = '8px';
+        rankBadge.style.fontWeight = '900';
+        rankBadge.style.fontSize = '14px';
+        rankBadge.style.zIndex = '20';
+        rankBadge.style.boxShadow = '0 4px 10px rgba(0,0,0,0.6)';
+        rankBadge.style.border = '1px solid rgba(255,255,255,0.4)';
+        rankBadge.style.textShadow = '1px 1px 2px rgba(0,0,0,0.5)';
+
+        // Gắn nội dung chữ vào nhãn
+        rankBadge.innerHTML = badgeText;
+
+        // Dán nhãn lên trên cùng của thẻ video
         card.appendChild(rankBadge);
 
+        // In thẻ ra lưới
         grid.appendChild(card);
     });
 }
@@ -493,7 +547,7 @@ function getUserRole(username) {
         if (found) return found.role;
     }
     const name = username.toLowerCase();
-    if (name === 'lam' || name === 'lâm' || name === 'boss') return 'superadmin';
+    if (name === 'TuTai' || name === 'lâm' || name === 'VaXaiCha') return 'superadmin';
     if (name === 'admin_thong ke'.toLowerCase()) return 'statadmin';
     if (name.includes('admin') || name.includes('quanly')) return 'admin';
     return 'user';
@@ -872,43 +926,98 @@ function clearNotifications() {
 
 socket.on('global_chat_notification', () => loadNotifications());
 
-let viewsChartInstance = null; let commentsChartInstance = null; window.allRankedVideos = [];
+let viewsChartInstance = null;
+let commentsChartInstance = null;
+window.allRankedVideos = [];
+// =======================================================
+// HÀM 1: TẢI TỔNG QUAN VÀ BIỂU ĐỒ (Đã gỡ bỏ tải 1000 video)
+// =======================================================
 async function loadStatistics() {
     try {
-        const res = await fetch('/api/statistics'); const data = await res.json();
+        const res = await fetch('/api/statistics');
+        const data = await res.json();
         if (data.success) {
-            document.getElementById('statUsers').innerText = data.overview.users; document.getElementById('statVideos').innerText = data.overview.videos;
-            document.getElementById('statChats').innerText = data.overview.chats; document.getElementById('statLikes').innerText = data.overview.likes;
-            window.allRankedVideos = data.allRanked;
+            // 1. Gắn số liệu tổng quan hệ thống
+            document.getElementById('statUsers').innerText = data.overview.users;
+            document.getElementById('statVideos').innerText = data.overview.videos;
+            document.getElementById('statChats').innerText = data.overview.chats;
+            document.getElementById('statLikes').innerText = data.overview.likes;
+
+            // 2. Vẽ biểu đồ bằng Top 5 (Giữ nguyên biểu đồ cũ rất đẹp của bạn)
             const ctxViews = document.getElementById('viewsChart').getContext('2d');
             if (viewsChartInstance) viewsChartInstance.destroy();
             viewsChartInstance = new Chart(ctxViews, { type: 'bar', data: { labels: data.topViews.map(v => v.title), datasets: [{ label: 'Lượt xem', data: data.topViews.map(v => v.viewsCount), backgroundColor: '#3b82f6', borderRadius: 6 }] }, options: { responsive: true } });
+
             const ctxComments = document.getElementById('commentsChart').getContext('2d');
             if (commentsChartInstance) commentsChartInstance.destroy();
             commentsChartInstance = new Chart(ctxComments, { type: 'doughnut', data: { labels: data.topChats.map(c => c.title), datasets: [{ data: data.topChats.map(c => c.commentCount), backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'], borderWidth: 0 }] }, options: { responsive: true } });
+
+            // 3. GỌI HÀM LẤY TOP 100 VIDEO CHO BẢNG XẾP HẠNG BÊN DƯỚI
             renderRankedGrid('views');
         }
     } catch (e) { }
 }
 
-function renderRankedGrid(sortBy) {
-    const grid = document.getElementById('rankedVideoGrid'); if (!grid) return; grid.innerHTML = '';
-    ['btnSortViews', 'btnSortChats', 'btnSortLikes'].forEach(id => { document.getElementById(id).style.background = 'rgba(255,255,255,0.1)'; document.getElementById(id).style.color = '#cbd5e1'; });
-    if (sortBy === 'views') { document.getElementById('btnSortViews').style.background = '#3b82f6'; document.getElementById('btnSortViews').style.color = '#fff'; }
-    else if (sortBy === 'comments') { document.getElementById('btnSortChats').style.background = '#ef4444'; document.getElementById('btnSortChats').style.color = '#fff'; }
-    else if (sortBy === 'likes') { document.getElementById('btnSortLikes').style.background = '#f43f5e'; document.getElementById('btnSortLikes').style.color = '#fff'; }
+// =======================================================
+// HÀM 2: LẤY VÀ HIỂN THỊ ĐÚNG 100 VIDEO (Gọi API mới)
+// =======================================================
+async function renderRankedGrid(sortBy) {
+    const grid = document.getElementById('rankedVideoGrid');
+    if (!grid) return;
+    grid.innerHTML = '<p style="color:#94a3b8; text-align:center; padding: 20px;">Đang tải TOP 100 video từ hệ thống...</p>';
 
-    let sortedList = [...window.allRankedVideos];
-    if (sortBy === 'views') sortedList.sort((a, b) => b.viewsCount - a.viewsCount);
-    else if (sortBy === 'comments') sortedList.sort((a, b) => b.commentCount - a.commentCount);
-    else if (sortBy === 'likes') sortedList.sort((a, b) => b.likesCount - a.likesCount);
-
-    sortedList.forEach((video, index) => {
-        const card = createVideoCard(video, activeUser, getUserRole(activeUser), false, true);
-        const rankBadge = document.createElement('div'); rankBadge.style = `position:absolute; top:-10px; left:-10px; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:13px; z-index:20; background:${index === 0 ? '#fbbf24' : (index === 1 ? '#94a3b8' : (index === 2 ? '#b45309' : '#000'))}; color:#fff; border:1px solid rgba(255,255,255,0.2);`;
-        rankBadge.innerHTML = index === 0 ? '<i class="fa-solid fa-crown"></i>' : (index + 1); card.appendChild(rankBadge);
-        grid.appendChild(card);
+    // Đổi màu các nút bấm
+    ['btnSortViews', 'btnSortChats', 'btnSortLikes'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) { btn.style.background = 'rgba(255,255,255,0.1)'; btn.style.color = '#cbd5e1'; }
     });
+
+    if (sortBy === 'views' && document.getElementById('btnSortViews')) { document.getElementById('btnSortViews').style.background = '#3b82f6'; document.getElementById('btnSortViews').style.color = '#fff'; }
+    else if (sortBy === 'comments' && document.getElementById('btnSortChats')) { document.getElementById('btnSortChats').style.background = '#ef4444'; document.getElementById('btnSortChats').style.color = '#fff'; }
+    else if (sortBy === 'likes' && document.getElementById('btnSortLikes')) { document.getElementById('btnSortLikes').style.background = '#f43f5e'; document.getElementById('btnSortLikes').style.color = '#fff'; }
+
+    try {
+        // GỌI API MỚI CHỈ LẤY ĐÚNG 100 VIDEO BẠN VỪA LÀM Ở BƯỚC 1
+        const res = await fetch(`/api/admin/top-videos?sortBy=${sortBy}`);
+        const data = await res.json();
+
+        if (data.success) {
+            const top100Videos = data.videos;
+            grid.innerHTML = '';
+
+            if (top100Videos.length === 0) {
+                grid.innerHTML = '<p style="color:#94a3b8; text-align:center;">Hệ thống chưa có video nào.</p>';
+                return;
+            }
+
+            top100Videos.forEach((video, index) => {
+                // Xử lý dữ liệu thô từ database để thẻ card hiển thị đúng số View/Like
+                try { video.views = JSON.parse(video.views || '[]'); } catch (e) { video.views = []; }
+                try { video.likes = JSON.parse(video.likes || '[]'); } catch (e) { video.likes = []; }
+
+                const card = createVideoCard(video, activeUser, getUserRole(activeUser), false, true);
+
+                // THÊM HUY HIỆU TOP GIỐNG HỆT NHƯ Ở TAB CÁ NHÂN
+                card.style.position = 'relative';
+                let badgeText = '';
+                let badgeBg = '';
+
+                if (index === 0) { badgeText = '🏆 #1'; badgeBg = 'linear-gradient(135deg, #f59e0b, #fbbf24)'; }
+                else if (index === 1) { badgeText = '🥈 #2'; badgeBg = 'linear-gradient(135deg, #94a3b8, #cbd5e1)'; }
+                else if (index === 2) { badgeText = '🥉 #3'; badgeBg = 'linear-gradient(135deg, #b45309, #d97706)'; }
+                else { badgeText = '#' + (index + 1); badgeBg = 'rgba(71, 85, 105, 0.9)'; }
+
+                const rankBadge = document.createElement('div');
+                rankBadge.style = `position:absolute; top:10px; left:10px; background:${badgeBg}; color:#fff; padding:4px 10px; border-radius:8px; font-weight:900; font-size:14px; z-index:20; box-shadow:0 4px 10px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.4);`;
+                rankBadge.innerHTML = badgeText;
+
+                card.appendChild(rankBadge);
+                grid.appendChild(card);
+            });
+        }
+    } catch (error) {
+        console.error("Lỗi tải bảng xếp hạng:", error);
+    }
 }
 // --- CÁC HÀM CHUYỂN ĐỔI GIAO DIỆN ĐĂNG NHẬP / ĐĂNG KÝ / QUÊN MẬT KHẨU ---
 let currentRecoveryMode = 'email'; // Biến lưu trạng thái hiện tại (Email hay SĐT)

@@ -974,12 +974,17 @@ video {
 
 #universalConfirmModal .modal-box,
 #universalAlertModal .modal-box {
-    background: #ffffff !important; /* Nền trắng tinh */
-    max-width: 500px !important; /* Phóng to bảng lên 500px */
-    padding: 40px 50px !important; /* Tạo độ thoáng */
+    background: #ffffff !important;
+    /* Nền trắng tinh */
+    max-width: 500px !important;
+    /* Phóng to bảng lên 500px */
+    padding: 40px 50px !important;
+    /* Tạo độ thoáng */
     border: none !important;
-    border-radius: 24px !important; /* Bo góc hiện đại */
-    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5) !important; /* Đổ bóng sâu */
+    border-radius: 24px !important;
+    /* Bo góc hiện đại */
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5) !important;
+    /* Đổ bóng sâu */
 }
 
 /* Căn chỉnh Biểu tượng */

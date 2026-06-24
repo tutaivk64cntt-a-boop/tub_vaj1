@@ -331,7 +331,7 @@ body {
     position: relative;
     overflow: hidden;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    
+
 }
 
 .hero-banner-new::before {
@@ -1449,10 +1449,11 @@ select.settings-input {
     width: calc(100% + 80px) !important;
     margin-left: -40px !important;
     margin-top: -30px !important;
-    height: 450px !important; 
+    height: 450px !important;
     padding: 0 !important;
-    margin-bottom: 150px !important; 
-    position: relative !important; /* Lệnh quan trọng nhất: Gỡ ghim, cho phép cuộn */
+    margin-bottom: 150px !important;
+    position: relative !important;
+    /* Lệnh quan trọng nhất: Gỡ ghim, cho phép cuộn */
     border-radius: 0 0 12px 12px !important;
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.5) !important;
     display: block !important;
@@ -1628,4 +1629,43 @@ select.settings-input {
 #universalAlertModal .btn-primary:hover {
     background: #2563eb !important;
     box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4) !important;
+}
+
+/* =========================================================
+   TẠO THANH CUỘN RIÊNG CHO DANH SÁCH VIDEO THỐNG KÊ
+   ========================================================= */
+#myRankedVideoGrid {
+    /* 1. Giới hạn chiều cao: Tự động tính toán chiều cao màn hình trừ đi phần Thống Kê phía trên */
+    max-height: calc(100vh - 380px);
+
+    /* Hoặc nếu bạn muốn cố định cứng chiều cao thì dùng dòng này (xóa dòng calc ở trên): 
+       max-height: 500px; */
+
+    /* 2. Ép hiển thị thanh cuộn dọc khi danh sách dài */
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    /* 3. Chừa một khoảng trống nhỏ để thanh cuộn không đè lên thẻ video */
+    padding-right: 10px;
+
+    /* 4. Giữ cho các video dồn lên trên cùng, không bị kéo giãn dọc nếu chỉ có 1-2 video */
+    align-content: start;
+}
+
+/* --- Tùy chọn làm đẹp thanh cuộn cho khu vực này --- */
+#myRankedVideoGrid::-webkit-scrollbar {
+    width: 6px;
+}
+
+#myRankedVideoGrid::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#myRankedVideoGrid::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+#myRankedVideoGrid::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
 }
