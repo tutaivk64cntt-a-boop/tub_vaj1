@@ -44,14 +44,47 @@ function changeAvatar(input) {
         const reader = new FileReader();
         reader.onload = function (e) {
             const base64Image = e.target.result;
+
+            // 1. Lưu ảnh mới vào LocalStorage
             let avatars = JSON.parse(localStorage.getItem('streamVibeAvatars')) || {};
             avatars[activeUser] = base64Image;
             localStorage.setItem('streamVibeAvatars', JSON.stringify(avatars));
 
-            document.getElementById('profileEditAvatar').src = base64Image;
-            updateProfileUI(activeUser);
-            loadVideoLists();
-            openAlert("Thành công", "Đã cập nhật ảnh đại diện mới!", "success");
+            // =========================================================
+            // 2. BẮT ĐẦU ĐỒNG BỘ GIAO DIỆN Ở MỌI NƠI
+            // =========================================================
+
+            // Cập nhật ở Tab Cài đặt (giống code cũ của bạn)
+            if (document.getElementById('profileEditAvatar')) {
+                document.getElementById('profileEditAvatar').src = base64Image;
+            }
+
+            // Cập nhật ở Tab "Video Của Tôi" (Mới thêm)
+            if (document.getElementById('dashboardBannerAvatar')) {
+                document.getElementById('dashboardBannerAvatar').src = base64Image;
+            }
+
+            // Cập nhật ở Menu Sidebar bên trái (Mới thêm)
+            const sidebarAvatars = document.querySelectorAll('.sidebar img, .user-profile img');
+            sidebarAvatars.forEach(img => {
+                img.src = base64Image;
+            });
+
+            // Quét toàn bộ ảnh trên web, nếu là ảnh mặc định của người này thì đổi luôn (Mới thêm)
+            document.querySelectorAll('img').forEach(img => {
+                if (img.src.includes('ui-avatars.com') && img.src.includes(encodeURIComponent(activeUser))) {
+                    img.src = base64Image;
+                }
+            });
+
+            // =========================================================
+            // 3. CHẠY LẠI CÁC HÀM CŨ ĐỂ ĐỒNG BỘ HOÀN TOÀN
+            // =========================================================
+            if (typeof updateProfileUI === 'function') updateProfileUI(activeUser);
+            if (typeof loadVideoLists === 'function') loadVideoLists();
+            if (typeof loadSettingsInfo === 'function') loadSettingsInfo(); // Đảm bảo đồng bộ Settings
+
+            openAlert("Thành công", "Đã cập nhật ảnh đại diện mới trên toàn hệ thống!", "success");
         }
         reader.readAsDataURL(input.files[0]);
     }
@@ -64,7 +97,7 @@ function changeAvatar(input) {
 async function openUserProfile(username) {
     currentProfileView = username;
     document.getElementById('viewProfileAvatar').src = getAvatarUrl(username);
-    document.getElementById('viewProfileName').innerHTML = `${username} ${username.toLowerCase() === 'lam' ? '<i class="fa-solid fa-circle-check" style="color: #3b82f6; font-size: 14px;"></i>' : ''}`;
+    document.getElementById('viewProfileName').innerHTML = `${username} ${username.toLowerCase() === 'TuTai' ? '<i class="fa-solid fa-circle-check" style="color: #3b82f6; font-size: 14px;"></i>' : ''}`;
 
     let userRole = getUserRole(username);
     let roleStr = "Thành viên hệ thống";
@@ -400,6 +433,9 @@ async function loadContacts() {
     } catch (e) { }
 }
 
+// Thêm biến này ra ngoài cùng (ngay trên hàm openChatWithUser)
+let lastPrivateMessageTime = null;
+
 async function openChatWithUser(username) {
     currentChatTarget = username;
     document.getElementById('chatEmptyState').style.display = 'none';
@@ -409,30 +445,65 @@ async function openChatWithUser(username) {
 
     const historyBox = document.getElementById('privateChatHistory');
     historyBox.innerHTML = '<p style="text-align:center; color:gray;">Đang tải...</p>';
+
+    // QUAN TRỌNG: Reset lại thời gian khi chuyển sang nhắn với người khác
+    lastPrivateMessageTime = null;
+
     try {
         const res = await fetch(`/api/messages/${activeUser}/${username}`);
         const data = await res.json();
         if (data.success) {
             historyBox.innerHTML = '';
-            data.messages.forEach(msg => appendPrivateMessageUI(msg.sender, msg.message));
 
-            // ĐÁNH DẤU LÀ ĐÃ ĐỌC TOÀN BỘ TIN NHẮN CỦA NGƯỜI NÀY
+            // SỬA: Truyền thêm biến thời gian (msg.createdAt) vào hàm hiển thị UI
+            data.messages.forEach(msg => appendPrivateMessageUI(msg.sender, msg.message, msg.createdAt));
+
+            // ĐÁNH DẤU LÀ ĐÃ ĐỌC TOÀN BỘ TIN NHẮN
             let receivedMsgs = data.messages.filter(m => m.sender === username).length;
             let localReadData = JSON.parse(localStorage.getItem('sv_read_counts_' + activeUser)) || {};
             localReadData[username] = receivedMsgs;
             localStorage.setItem('sv_read_counts_' + activeUser, JSON.stringify(localReadData));
 
-            loadContacts(); // Refresh lại danh sách để xóa số đỏ
+            loadContacts();
         }
     } catch (e) { }
 }
 
-function appendPrivateMessageUI(sender, text) {
+function appendPrivateMessageUI(sender, text, createdAt) {
     const historyBox = document.getElementById('privateChatHistory');
     const isMine = (sender === activeUser);
     const bubbleClass = isMine ? 'msg-mine' : 'msg-theirs';
-    historyBox.innerHTML += `<div class="msg-bubble ${bubbleClass}">${text}</div>`;
+
+    let timeHtml = '';
+    // Nếu chưa có thời gian (ví dụ tin nhắn mình vừa gửi tức thì), lấy giờ của máy tính
+    const msgTime = createdAt ? new Date(createdAt) : new Date();
+
+    // LOGIC NHÓM TIN NHẮN GIỐNG MESSENGER (30 PHÚT)
+    if (!lastPrivateMessageTime) {
+        // Tin nhắn đầu tiên: Bắt buộc hiện giờ
+        timeHtml = generateTimeHtml(msgTime);
+        lastPrivateMessageTime = msgTime;
+    } else {
+        // Lấy khoảng cách giữa tin nhắn này và tin trước đó (đơn vị: phút)
+        const diffMs = msgTime.getTime() - lastPrivateMessageTime.getTime();
+        const diffMins = diffMs / (1000 * 60);
+
+        if (diffMins > 30) {
+            // Cách nhau hơn 30 phút: Hiện thời gian và tạo mốc tính toán mới
+            timeHtml = generateTimeHtml(msgTime);
+            lastPrivateMessageTime = msgTime;
+        }
+    }
+
+    historyBox.innerHTML += `${timeHtml}<div class="msg-bubble ${bubbleClass}">${text}</div>`;
     historyBox.scrollTop = historyBox.scrollHeight;
+}
+
+// Hàm phụ trợ giúp định dạng giờ (Ví dụ: 08:05, 14:30)
+function generateTimeHtml(dateObj) {
+    const hours = dateObj.getHours().toString().padStart(2, '0');
+    const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+    return `<div style="text-align: center; font-size: 11px; color: #94a3b8; margin: 15px 0 5px 0; font-weight: bold;">${hours}:${minutes}</div>`;
 }
 
 async function sendPrivateMessage(e) {
@@ -441,7 +512,8 @@ async function sendPrivateMessage(e) {
     const text = input.value.trim();
     if (!text || !currentChatTarget) return;
 
-    appendPrivateMessageUI(activeUser, text);
+    // In ngay lên màn hình của người gửi bằng giờ hiện tại
+    appendPrivateMessageUI(activeUser, text, new Date().toISOString());
     input.value = '';
 
     try {
@@ -451,32 +523,34 @@ async function sendPrivateMessage(e) {
         });
         const data = await res.json();
         if (data.success) {
-            socket.emit('send_private_message', { sender: activeUser, receiver: currentChatTarget, message: text });
+            // SỬA: Gửi kèm thời gian thật từ Database qua Socket
+            socket.emit('send_private_message', {
+                sender: activeUser,
+                receiver: currentChatTarget,
+                message: text,
+                createdAt: data.createdAt
+            });
         }
     } catch (err) { }
 }
 
 socket.on('receive_private_message', (data) => {
-    // Nếu đang mở đúng đoạn chat với người đó thì hiện tin nhắn ngay lập tức
     if ((data.sender === currentChatTarget && data.receiver === activeUser) || (data.sender === activeUser && data.receiver === currentChatTarget)) {
-        if (data.sender !== activeUser) appendPrivateMessageUI(data.sender, data.message);
+        // SỬA: Truyền thêm data.createdAt vào để vẽ giờ lên màn hình
+        if (data.sender !== activeUser) appendPrivateMessageUI(data.sender, data.message, data.createdAt);
     }
 
-    // Xử lý thông báo số đỏ
     if (data.receiver === activeUser) {
         const activeTab = localStorage.getItem('streamVibeActiveTab');
         if (activeTab === 'privateMessages' && currentChatTarget === data.sender) {
-            // Nếu đang mở khung chat của họ -> Đánh dấu là đã đọc luôn
             let localReadData = JSON.parse(localStorage.getItem('sv_read_counts_' + activeUser)) || {};
             localReadData[data.sender] = (localReadData[data.sender] || 0) + 1;
             localStorage.setItem('sv_read_counts_' + activeUser, JSON.stringify(localReadData));
         } else {
-            // Nếu đang ở tab khác hoặc chat với người khác -> Hiện Popup xanh báo có tin
             openAlert("Tin nhắn riêng", `Bạn có tin nhắn mới từ ${data.sender}!`, "success");
         }
     }
-
-    loadContacts(); // Luôn chạy lại hàm này để nó tự tính toán và cập nhật số đỏ hoàn hảo!
+    loadContacts();
 });
 
 // ==========================================
@@ -804,7 +878,7 @@ function createVideoCard(video, activeUser, activeRole, canDelete, showBadge = f
             <div class="dropdown-item" onclick="shareVideo('${id}', event)"><i class="fa-solid fa-share-nodes"></i> Chia sẻ Link</div>
         </div>`;
 
-    let badgeHtml = showBadge ? `<div class="v-uploader-yt">${ownerName} ${ownerName.toLowerCase() === 'lam' ? '<i class="fa-solid fa-crown" style="color:#fbbf24;"></i>' : ''}</div>` : `<div class="v-uploader-yt">Video của bạn</div>`;
+    let badgeHtml = showBadge ? `<div class="v-uploader-yt">${ownerName} ${ownerName.toLowerCase() === 'TuTai' ? '<i class="fa-solid fa-crown" style="color:#fbbf24;"></i>' : ''}</div>` : `<div class="v-uploader-yt">Video của bạn</div>`;
 
     card.innerHTML = `
         <div class="thumb-area" style="background: url('/videos/${id}/thumbnail.jpg') center/cover;" onclick="watchVideo('${id}')">
@@ -1382,7 +1456,6 @@ window.loadSettingsInfo = function () {
     let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {};
     if (document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
-
 // HÀM XỬ LÝ NÚT BẤM ĐỔI TÊN
 window.submitChangeName = function () {
     const newName = document.getElementById('newNameInput').value.trim();
@@ -1390,7 +1463,6 @@ window.submitChangeName = function () {
         openAlert("Lỗi", "Vui lòng nhập tên mới!", "error");
         return;
     }
-
     fetch('/api/settings/change-name', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: activeUser, newName: newName })
@@ -1398,14 +1470,72 @@ window.submitChangeName = function () {
         if (d.success) {
             openAlert("Thành công", "Đã đổi tên hiển thị! Mọi người sẽ thấy tên mới của bạn.", "success");
             document.getElementById('newNameInput').value = '';
-            setTimeout(() => window.location.reload(), 2000); // Tải lại trang để áp dụng
+            // --- LOGIC MỚI: CẬP NHẬT GIAO DIỆN TỨC THÌ KHÔNG CẦN F5 ---
+            // 1. Cập nhật dữ liệu vào biến toàn cục của Frontend
+            let me = window.allUsersDB.find(u => u.username === activeUser);
+            if (me) {
+                me.display_name = newName;
+            } else {
+                window.allUsersDB.push({ username: activeUser, role: 'user', display_name: newName });
+            }
+            // 2. Chạy lại hàm đồng bộ UI để cập nhật TẤT CẢ mọi nơi (Sidebar, Cài đặt, Banner...)
+            if (typeof loadSettingsInfo === 'function') {
+                loadSettingsInfo();
+            }
         } else {
             openAlert("Chưa thể đổi tên", d.message, "error");
         }
     });
 }
 
-// --- HÀM TẢI VÀ THAY ĐỔI ẢNH BÌA (ĐÃ NÂNG CẤP) ---
+window.submitChangePassword = async function (e) {
+    // Bắt buộc phải có để Form không tải lại trang khi bấm Enter
+    e.preventDefault(); 
+
+    // Lấy đúng ID từ file HTML của bạn
+    const currentPass = document.getElementById('oldPasswordInput').value;
+    const newPass = document.getElementById('newPasswordInput').value;
+    const confirmPass = document.getElementById('confirmNewPasswordInput').value;
+
+    if (!currentPass || !newPass || !confirmPass) {
+        return openAlert("Lỗi", "Vui lòng nhập đầy đủ thông tin!", "error");
+    }
+    if (newPass !== confirmPass) {
+        return openAlert("Lỗi", "Mật khẩu xác nhận không khớp!", "error");
+    }
+
+    try {
+        const res = await fetch('/api/settings/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: activeUser,
+                currentPassword: currentPass,
+                newPassword: newPass
+            })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // Xóa rỗng các ô nhập sau khi đổi thành công
+            document.getElementById('oldPasswordInput').value = '';
+            document.getElementById('newPasswordInput').value = '';
+            document.getElementById('confirmNewPasswordInput').value = '';
+
+            openAlert("Thành công", "Đổi mật khẩu an toàn thành công! Đang tiến hành đăng xuất...", "success");
+            
+            // Xóa phiên đăng nhập và ép người dùng ra màn hình Login sau 2 giây
+            setTimeout(() => {
+                localStorage.removeItem('streamVibeActiveUser');
+                window.location.reload();
+            }, 2000);
+        } else {
+            openAlert("Lỗi đổi mật khẩu", data.message, "error");
+        }
+    } catch (err) {
+        openAlert("Lỗi mạng", "Không thể kết nối đến máy chủ.", "error");
+    }
+};
 // =========================================================================
 // HÀM TẢI VÀ THAY ĐỔI ẢNH BÌA (ĐÃ BỎ LỚP PHỦ MÀU)
 // =========================================================================
@@ -1441,31 +1571,41 @@ window.changeBanner = function (input) {
 }
 
 // --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ KÉO ẢNH BÌA RA (ĐÃ NÂNG CẤP) ---
+// --- CẬP NHẬT HÀM LOAD THÔNG TIN ĐỂ ÉP ĐỔI TÊN MỌI VỊ TRÍ ---
 window.loadSettingsInfo = function () {
     if (!activeUser) return;
-    document.getElementById('settingUsername').innerText = activeUser;
 
+    // 1. TÌM TÊN HIỂN THỊ MỚI NHẤT TỪ DATABASE
     let displayName = activeUser;
     if (window.allUsersDB && window.allUsersDB.length > 0) {
         const me = window.allUsersDB.find(u => u.username === activeUser);
         if (me && me.display_name) displayName = me.display_name;
     }
 
+    // 2. GHI ĐÈ TÊN MỚI LÊN TOÀN BỘ GIAO DIỆN (Bao gồm cả chỗ bạn khoanh đỏ)
+    if (document.getElementById('settingUsername')) document.getElementById('settingUsername').innerText = displayName;
     if (document.getElementById('settingDisplayName')) document.getElementById('settingDisplayName').innerText = displayName;
     if (document.getElementById('profileEditName')) document.getElementById('profileEditName').innerText = displayName.toUpperCase();
     if (document.getElementById('displayUsername')) document.getElementById('displayUsername').innerText = displayName;
+    if (document.getElementById('dashboardBannerName')) document.getElementById('dashboardBannerName').innerText = displayName;
 
-    document.getElementById('profileEditAvatar').src = getAvatarUrl(activeUser);
-    if (document.getElementById('dashboardBannerAvatar')) {
-        document.getElementById('dashboardBannerAvatar').src = getAvatarUrl(activeUser);
+    // 3. Cập nhật Avatar
+    const myAvatar = getAvatarUrl(activeUser);
+    if (document.getElementById('profileEditAvatar')) document.getElementById('profileEditAvatar').src = myAvatar;
+    if (document.getElementById('dashboardBannerAvatar')) document.getElementById('dashboardBannerAvatar').src = myAvatar;
+
+    // 4. Cập nhật Chức vụ
+    const bannerRole = document.getElementById('dashboardBannerRole');
+    if (bannerRole) {
+        const roleCode = getUserRole(activeUser);
+        bannerRole.innerText = roleCode === 'superadmin' ? '👑 Tổng Tư Lệnh' : (roleCode === 'admin' ? '🛡️ Quản trị viên' : (roleCode === 'statadmin' ? '📊 Quản lý Thống kê' : '👤 Thành viên'));
     }
 
-    // ĐỌC VÀ HIỂN THỊ ẢNH BÌA CỦA NGƯỜI NÀY
+    // 5. Đọc và hiển thị Ảnh bìa
     let banners = JSON.parse(localStorage.getItem('streamVibeBanners')) || {};
     let userBanner = banners[activeUser];
     if (userBanner) {
         if (document.getElementById('profileEditBannerPreview')) document.getElementById('profileEditBannerPreview').style.backgroundImage = `url(${userBanner})`;
-
         const mainBanner = document.getElementById('mainDashboardBanner');
         if (mainBanner) {
             mainBanner.style.backgroundImage = `url(${userBanner})`;
@@ -1480,6 +1620,7 @@ window.loadSettingsInfo = function () {
         }
     }
 
+    // 6. Cập nhật Số điện thoại
     let phones = JSON.parse(localStorage.getItem('streamVibePhones')) || {};
     if (document.getElementById('phoneInput')) document.getElementById('phoneInput').value = phones[activeUser] || "";
 }
@@ -1520,5 +1661,183 @@ window.joinRoomFromHome = function () {
         window.location.href = '/player.html?id=' + videoId;
     } else {
         alert("Mã phòng không hợp lệ! Mã xem chung chuẩn phải có dấu gạch dưới (Ví dụ: ROOM-1234_abc). Vui lòng copy chính xác mã bạn bè gửi.");
+    }
+};
+
+// 1. HÀM CẬP NHẬT GIAO DIỆN CẢ EMAIL LẪN SĐT (Thay thế hàm cũ)
+window.fetchAndRenderContactStatus = function() {
+    if (!activeUser) return;
+    fetch(`/api/user-info/${activeUser}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // XỬ LÝ EMAIL
+                if (document.getElementById('currentSettingsEmail')) {
+                    document.getElementById('currentSettingsEmail').innerText = data.email || 'Chưa thiết lập';
+                    const badgeE = document.getElementById('emailStatusBadge');
+                    if (data.email_verified) {
+                        badgeE.innerText = '✓ Đã xác thực'; badgeE.style.background = 'rgba(16, 185, 129, 0.2)'; badgeE.style.color = '#10b981';
+                    } else {
+                        badgeE.innerText = '⚠ Chưa xác thực'; badgeE.style.background = 'rgba(239, 68, 68, 0.2)'; badgeE.style.color = '#ef4444';
+                    }
+                }
+                
+                // XỬ LÝ SĐT
+                if (document.getElementById('currentSettingsPhone')) {
+                    document.getElementById('currentSettingsPhone').innerText = data.phone || 'Chưa thiết lập';
+                    const badgeP = document.getElementById('phoneStatusBadge');
+                    if (data.phone_verified) {
+                        badgeP.innerText = '✓ Đã xác thực'; badgeP.style.background = 'rgba(16, 185, 129, 0.2)'; badgeP.style.color = '#10b981';
+                    } else {
+                        badgeP.innerText = '⚠ Chưa xác thực'; badgeP.style.background = 'rgba(239, 68, 68, 0.2)'; badgeP.style.color = '#ef4444';
+                    }
+                }
+            }
+        });
+};
+
+// 2. LUỒNG ĐỔI SĐT MỚI BẰNG HỘP THOẠI XỊN XÒ
+window.openChangePhoneFlow = async function() {
+    const currentPass = await openCustomPrompt("Xác Thực Bảo Mật", "Vui lòng nhập mật khẩu hiện tại của bạn để tiếp tục:", "fa-shield-halved", "password");
+    if (!currentPass) return;
+
+    const newPhone = await openCustomPrompt("Nhập SĐT Mới", "Vui lòng nhập Số điện thoại MỚI bạn muốn sử dụng:", "fa-phone", "text");
+    if (!newPhone || newPhone.length < 8) return openAlert("Lỗi", "Số điện thoại không hợp lệ!", "error");
+
+    openAlert("Đang xử lý", "Hệ thống đang tạo mã OTP, vui lòng đợi...", "info");
+
+    const res = await fetch('/api/settings/request-phone-change', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: activeUser, password: currentPass, newPhone: newPhone })
+    });
+    const data = await res.json();
+    if (!data.success) return openAlert("Lỗi", data.message, "error");
+
+    // LƯU Ý MỤC NÀY SẼ BÁO BẠN MỞ TERMINAL ĐỂ LẤY OTP
+    const otp = await openCustomPrompt("Nhập Mã Xác Nhận", `Hệ thống vừa in mã OTP ra cửa sổ Terminal (màn hình đen) của Server. Hãy mở Terminal lên để lấy mã và nhập vào đây:`, "fa-key", "text");
+    if (!otp) return;
+
+    const verifyRes = await fetch('/api/settings/verify-phone-change', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: activeUser, newPhone: newPhone, otp: otp })
+    });
+    const verifyData = await verifyRes.json();
+
+    if (verifyData.success) {
+        openAlert("Thành công", "Đổi Số điện thoại thành công!", "success");
+        window.fetchAndRenderContactStatus(); // Cập nhật lại UI ngay lập tức
+    } else {
+        openAlert("Lỗi", verifyData.message, "error");
+    }
+};
+
+// Cuối cùng, chạy hàm cập nhật khi tải trang
+setTimeout(window.fetchAndRenderContactStatus, 1000);
+
+// ===================================================================
+// HÀM TẠO HỘP THOẠI NHẬP LIỆU SIÊU ĐẸP (Thay thế prompt mặc định)
+// ===================================================================
+window.openCustomPrompt = function(title, message, iconClass = 'fa-lock', inputType = 'text') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('universalPromptModal');
+        document.getElementById('customPromptTitle').innerText = title;
+        document.getElementById('customPromptMessage').innerText = message;
+        document.getElementById('customPromptIcon').innerHTML = `<i class="fa-solid ${iconClass}"></i>`;
+        
+        const inputEle = document.getElementById('customPromptInput');
+        inputEle.type = inputType;
+        inputEle.value = ''; // Xóa chữ cũ
+        
+        modal.style.display = 'flex';
+        inputEle.focus(); // Tự động trỏ chuột vào ô nhập
+
+        const btnOk = document.getElementById('customPromptBtnOK');
+        const btnCancel = document.getElementById('customPromptBtnCancel');
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            btnOk.onclick = null;
+            btnCancel.onclick = null;
+            inputEle.onkeyup = null;
+        };
+
+        btnOk.onclick = () => {
+            const val = inputEle.value.trim();
+            cleanup();
+            resolve(val);
+        };
+
+        btnCancel.onclick = () => {
+            cleanup();
+            resolve(null);
+        };
+
+        // Hỗ trợ bấm phím Enter để xác nhận nhanh
+        inputEle.onkeyup = (e) => {
+            if (e.key === 'Enter') btnOk.click();
+        };
+    });
+};
+
+// ===================================================================
+// LUỒNG ĐỔI EMAIL ĐÃ ĐƯỢC NÂNG CẤP GIAO DIỆN
+// ===================================================================
+window.openChangeEmailFlow = async function() {
+    // Bước 1: Yêu cầu mật khẩu (Dùng icon cái khóa và mã hóa dấu sao password)
+    const currentPass = await openCustomPrompt(
+        "Xác Thực Bảo Mật", 
+        "Vui lòng nhập mật khẩu hiện tại của bạn để tiếp tục:", 
+        "fa-shield-halved", 
+        "password"
+    );
+    if (!currentPass) return;
+
+    // Bước 2: Nhập email mới (Dùng icon lá thư)
+    const newEmail = await openCustomPrompt(
+        "Nhập Email Mới", 
+        "Vui lòng nhập địa chỉ Email MỚI bạn muốn sử dụng:", 
+        "fa-envelope", 
+        "email"
+    );
+    if (!newEmail || !newEmail.includes('@')) return openAlert("Lỗi", "Email không hợp lệ!", "error");
+
+    openAlert("Đang xử lý", "Hệ thống đang gửi mã OTP đến email mới, vui lòng đợi...", "info");
+
+    // Yêu cầu Backend kiểm tra và gửi mail
+    const res = await fetch('/api/settings/request-email-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: activeUser, password: currentPass, newEmail: newEmail })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+        return openAlert("Lỗi", data.message, "error");
+    }
+
+    // Bước 3: Nhập OTP (Dùng icon chìa khóa)
+    const otp = await openCustomPrompt(
+        "Nhập Mã Xác Nhận", 
+        `Mã OTP 6 số đã được gửi đến ${newEmail}. Vui lòng kiểm tra hộp thư và nhập mã vào đây:`, 
+        "fa-key", 
+        "text"
+    );
+    if (!otp) return;
+
+    // Bước 4: Gửi OTP lên Server
+    const verifyRes = await fetch('/api/settings/verify-email-change', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: activeUser, newEmail: newEmail, otp: otp })
+    });
+    const verifyData = await verifyRes.json();
+
+    if (verifyData.success) {
+        openAlert("Thành công", "Đổi Email thành công! Email mới đã được kích hoạt làm tài khoản đăng nhập chính.", "success");
+        if (typeof window.fetchAndRenderEmailStatus === 'function') {
+            window.fetchAndRenderEmailStatus();
+        }
+    } else {
+        openAlert("Lỗi", verifyData.message, "error");
     }
 };

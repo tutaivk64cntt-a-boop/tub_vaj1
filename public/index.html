@@ -496,12 +496,46 @@
                         </div>
                     </div>
 
-                    <div class="setting-nav-card glass-card" onclick="openSettingPanel('panel-phone')">
-                        <div class="setting-nav-icon" style="color: #f59e0b;"><i class="fa-solid fa-mobile-screen"></i>
-                        </div>
-                        <div class="setting-nav-text">
-                            <h3>Số điện thoại khôi phục</h3>
-                            <p>Thêm số điện thoại dự phòng để lấy lại mật khẩu nếu bạn vô tình quên mất.</p>
+                    <div style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); margin-top: 20px;">
+    <h3 style="color: #fff; margin-bottom: 15px; font-size: 16px;"><i class="fa-solid fa-phone" style="color: #10b981;"></i> Quản lý Số điện thoại</h3>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+        <div>
+            <div style="color: #94a3b8; font-size: 13px; margin-bottom: 5px;">Số điện thoại hiện tại:</div>
+            <div id="currentSettingsPhone" style="color: #fff; font-weight: bold; font-size: 16px;">Đang tải...</div>
+            <div id="phoneStatusBadge" style="margin-top: 5px; font-size: 12px; display: inline-block; padding: 3px 8px; border-radius: 4px;"></div>
+        </div>
+        
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.openChangePhoneFlow()" class="btn-small" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.5); padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s;" onmouseover="this.style.background='rgba(16, 185, 129, 0.4)'" onmouseout="this.style.background='rgba(16, 185, 129, 0.2)'">
+                Thay đổi hoặc thêm SĐT
+            </button>
+        </div>
+    </div>
+</div>
+
+                    <div
+                        style="background: rgba(255,255,255,0.02); padding: 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); margin-top: 20px;">
+                        <h3 style="color: #fff; margin-bottom: 15px; font-size: 16px;"><i class="fa-solid fa-envelope"
+                                style="color: #3b82f6;"></i> Quản lý Email</h3>
+
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                            <div>
+                                <div style="color: #94a3b8; font-size: 13px; margin-bottom: 5px;">Email hiện tại:</div>
+                                <div id="currentSettingsEmail" style="color: #fff; font-weight: bold; font-size: 16px;">
+                                    Đang tải...</div>
+                                <div id="emailStatusBadge"
+                                    style="margin-top: 5px; font-size: 12px; display: inline-block; padding: 3px 8px; border-radius: 4px;">
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 10px;">
+                                <button onclick="window.openChangeEmailFlow()" class="btn-small"
+                                    style="background: rgba(59, 130, 246, 0.2); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.5); padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                                    Thay đổi Email
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -616,7 +650,7 @@
                         đổi Mật khẩu</h3>
                     <p style="font-size: 13px; color: #94a3b8; margin-bottom: 15px;">Đổi mật khẩu nếu bạn nghi ngờ có
                         người khác đang biết mật khẩu của mình.</p>
-                    <form onsubmit="handleChangePassword(event)">
+                    <form onsubmit="submitChangePassword(event)">
                         <input type="password" id="oldPasswordInput" class="settings-input"
                             placeholder="Nhập mật khẩu HIỆN TẠI..." required>
                         <input type="password" id="newPasswordInput" class="settings-input"
@@ -741,7 +775,8 @@
                     <h2 style="font-size: 24px; color: #fff; font-weight: 700; margin: 0;">Kho Video Khám Phá Chung
                         <span
                             style="font-size: 12px; background: rgba(59, 130, 246, 0.2); color: #3b82f6; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 10px;">PUBLIC
-                            VIDEOS</span></h2>
+                            VIDEOS</span>
+                    </h2>
                     <p style="color: #94a3b8; font-size: 14px; margin-top: 5px; margin-bottom: 0; font-weight: bold;">
                         Tất cả video trên Server</p>
                 </div>
@@ -1117,6 +1152,40 @@
             </button>
         </div>
     </div>
+
+    <div id="universalPromptModal" class="modal-overlay"
+        style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+        <div class="modal-box"
+            style="background: #ffffff; padding: 30px; border-radius: 16px; border: 1px solid #e2e8f0; width: 400px; max-width: 90%; text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.2); transform: translateY(0); animation: slideDown 0.3s ease-out;">
+
+            <div id="customPromptIcon" style="font-size: 45px; color: #3b82f6; margin-bottom: 15px;">
+                <i class="fa-solid fa-lock"></i>
+            </div>
+
+            <h3 id="customPromptTitle" style="color: #0f172a; margin-bottom: 10px; font-size: 20px; font-weight: bold;">
+                Tiêu đề</h3>
+            <p id="customPromptMessage" style="color: #64748b; font-size: 14px; margin-bottom: 20px;">Nội dung yêu cầu
+                nhập liệu</p>
+
+            <input type="text" id="customPromptInput"
+                style="width: 100%; padding: 14px 15px; border-radius: 10px; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; margin-bottom: 20px; outline: none; font-size: 15px; transition: 0.3s;"
+                placeholder="Nhập tại đây..."
+                onfocus="this.style.borderColor='#3b82f6'; this.style.background='#ffffff'"
+                onblur="this.style.borderColor='#cbd5e1'; this.style.background='#f8fafc'">
+
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button id="customPromptBtnCancel"
+                    style="flex: 1; padding: 12px; border-radius: 10px; border: none; background: #f1f5f9; color: #475569; cursor: pointer; font-weight: bold; transition: 0.2s;"
+                    onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">Hủy
+                    Bỏ</button>
+                <button id="customPromptBtnOK"
+                    style="flex: 1; padding: 12px; border-radius: 10px; border: none; background: #3b82f6; color: #ffffff; cursor: pointer; font-weight: bold; transition: 0.2s; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);"
+                    onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">Xác
+                    Nhận</button>
+            </div>
+        </div>
+    </div>
     <script src="index.js?v=999"></script>
 </body>
+
 </html>

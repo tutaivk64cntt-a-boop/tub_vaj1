@@ -698,36 +698,6 @@ function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isE
     chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-function appendChatMessage(username, message, time) {
-    const chatBox = document.getElementById('chatBox');
-    if (!chatBox) return;
-
-    const msgHtml = `
-        <div style="display: flex; gap: 15px; margin-bottom: 20px; animation: slideIn 0.3s ease;">
-            <img src="${getAvatarUrl(username)}" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,0.1); flex-shrink: 0;">
-            <div style="background: rgba(255,255,255,0.05); padding: 12px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); flex-grow: 1;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                    <span style="font-weight: 700; color: #3b82f6; font-size: 14px;">${username}</span>
-                    <span style="font-size: 11px; color: #94a3b8;">${time}</span>
-                </div>
-                <div style="color: #f1f5f9; font-size: 14px; line-height: 1.5; word-break: break-word;">${message}</div>
-                
-                <div style="display: flex; gap: 15px; margin-top: 10px;">
-                    <button class="chat-action-btn" onclick="likeLiveComment(this)">
-                        <i class="fa-regular fa-heart"></i> <span class="like-count">0</span>
-                    </button>
-                    <button class="chat-action-btn" onclick="replyLiveComment('${username}')">
-                        <i class="fa-solid fa-reply"></i> Trả lời
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    chatBox.innerHTML += msgHtml;
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-
 function deleteMessage(chatId) {
     openConfirm('deleteChatMessage', chatId, 'Xóa bình luận', 'Bạn có chắc chắn muốn xóa vĩnh viễn bình luận này không?');
 }
@@ -1319,50 +1289,3 @@ window.createCinemaRoom = function () {
         toggleCinemaRoom();
     }
 };
-
-
-
-
-// HÀM TỰ ĐỘNG TẢI VÀ HIỂN THỊ VIDEO TRONG BẢNG PROFILE (Dùng chung cho cả Index và Player)
-function fetchProfileVideos(username) {
-    const countEl = document.getElementById('profileVideoCount');
-    const gridEl = document.getElementById('profileVideoGrid');
-
-    if (!gridEl) return;
-
-    // Hiển thị trạng thái đang tải
-    gridEl.innerHTML = '<p style="color: #94a3b8; font-size: 14px; grid-column: 1 / -1;">Đang tải danh sách video...</p>';
-
-    // Gọi lên Backend yêu cầu danh sách video
-    fetch(`/api/user-videos?username=${encodeURIComponent(username)}`)
-        .then(res => res.json())
-        .then(videos => {
-            // Điền số lượng video vào trong dấu ngoặc tròn (Ví dụ: Các video (5))
-            if (countEl) countEl.innerText = videos.length;
-
-            // Xóa chữ "Đang tải"
-            gridEl.innerHTML = '';
-
-            // Nếu không có video nào
-            if (videos.length === 0) {
-                gridEl.innerHTML = '<p style="color: #94a3b8; font-size: 14px; grid-column: 1 / -1; text-align: center;">Tài khoản này chưa đăng video nào.</p>';
-                return;
-            }
-
-            // Có video thì hiển thị ra dạng lưới
-            videos.forEach(video => {
-                const card = `
-                    <div class="video-card" onclick="window.location.href='/player.html?id=${video.id || video.video_id}'" style="cursor:pointer; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 12px; transition: 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">
-                        <img src="${video.thumbnail || 'thumb-default.jpg'}" style="width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; margin-bottom: 8px;">
-                        <h4 style="color:#fff; font-size:14px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${video.title}</h4>
-                        <p style="color:#94a3b8; font-size:12px; margin-top:4px; margin-bottom:0;">${video.views || 0} lượt xem</p>
-                    </div>
-                `;
-                gridEl.insertAdjacentHTML('beforeend', card);
-            });
-        })
-        .catch(err => {
-            console.error("Lỗi lấy video profile: ", err);
-            gridEl.innerHTML = '<p style="color: #ef4444; font-size: 14px; grid-column: 1 / -1;">Không thể tải danh sách video.</p>';
-        });
-}
