@@ -590,13 +590,13 @@ async function renderChatBox() {
 
         if (data.success && data.chats) {
             data.chats.forEach(chat => {
-                appendChatMessageToDOM(chat.user, chat.text, chat._id);
+                appendChatMessageToDOM(chat.user, chat.text, chat._id, false, false, chat.createdAt);
             });
         }
     } catch (error) { console.error("Lỗi lấy dữ liệu chat:", error); }
 }
 
-function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isError = false) {
+function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isError = false, timestamp = null) {
     if (!chatBox) return;
     if (text === '❤️ Đã thả tim video của bạn') return;
 
@@ -656,17 +656,63 @@ function appendChatMessageToDOM(user, text, chatId = null, isSystem = false, isE
             }
         }
 
+        // --- XỬ LÝ DỮ LIỆU THỜI GIAN CHO BÌNH LUẬN ---
+        const msgTime = timestamp ? new Date(timestamp) : new Date();
+        const timeBadgeStr = formatCommentTimeBadge(msgTime);
+        const fullTooltipStr = getFullTooltipTime(msgTime);
+        const isoTimeStr = msgTime.toISOString();
+
         // ========================================================
-        // (GIỮ NGUYÊN ĐOẠN msgEl.innerHTML = `...` CŨ CỦA BẠN Ở DƯỚI)
+        // KHỞI TẠO LOGO VÀ DANH HIỆU DỰA TRÊN VAI TRÒ
+        // ========================================================
+        let userRoleBadge = getUserRole(user);
+        let badgeIcon = '';
+        let subTextHtml = '';
+
+        if (userRoleBadge === 'superadmin') {
+            badgeIcon = '<i class="fa-solid fa-crown" style="color: #fbbf24; filter: drop-shadow(0 0 4px #fbbf24); font-size: 13px;"></i>';
+            subTextHtml = '<div class="vip-subtext" style="color: #fbbf24;">Người Sáng Lập</div>';
+        } else if (userRoleBadge === 'admin') {
+            badgeIcon = '<i class="fa-solid fa-diamond" style="color: #a855f7; filter: drop-shadow(0 0 4px #a855f7); font-size: 13px;"></i>';
+            subTextHtml = '<div class="vip-subtext" style="color: #a855f7;">Quản Trị Viên</div>';
+        } else if (userRoleBadge === 'statadmin') {
+            badgeIcon = '<i class="fa-solid fa-star" style="color: #10b981; filter: drop-shadow(0 0 4px #10b981); font-size: 13px;"></i>';
+            subTextHtml = '<div class="vip-subtext" style="color: #10b981;">Mod Server</div>';
+        } else {
+            badgeIcon = '<i class="fa-solid fa-circle-check" style="color: #38bdf8; filter: drop-shadow(0 0 4px #38bdf8); font-size: 12px;"></i>';
+            subTextHtml = '<div class="vip-subtext" style="color: #94a3b8;">Verified Creator</div>';
+        }
+
+        // Tích hợp tên VIP vào HTML
+        const enhancedUsernameHtml = `
+            <div class="vip-name-container" onclick="openUserProfile('${user}')">
+                <div class="vip-name-row">
+                    ${userRoleBadge === 'superadmin' ? badgeIcon : ''}
+                    <span class="vip-name-text">${user}</span>
+                    ${userRoleBadge !== 'superadmin' ? badgeIcon : ''}
+                </div>
+                ${subTextHtml}
+            </div>
+        `;
+
+        // ========================================================
+        // CHÈN VÀO HTML HIỆN TẠI (CHỈ THAY ĐỔI VỊ TRÍ TÊN)
         // ========================================================
         msgEl.innerHTML = `
             <img src="${avatar}" class="chat-avatar" alt="Avatar" onclick="openUserProfile('${user}')" onerror="this.src='https://ui-avatars.com/api/?name=User&background=1e293b&color=fff'">
             <div class="chat-content-bubble" style="flex-grow: 1;">
-                <div class="chat-header-row">
-                    <div class="chat-username" onclick="openUserProfile('${user}')">${user}</div>
+                
+                <div class="chat-header-row" style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        ${enhancedUsernameHtml}
+                        <span class="live-comment-time" data-time="${isoTimeStr}" title="${fullTooltipStr}" style="font-size: 11px; color: #94a3b8; cursor: default; font-weight: 500;">${timeBadgeStr}</span>
+                    </div>
+
                     ${deleteHtml}
                 </div>
-                <div class="chat-text">${actualText}</div>
+
+                <div class="chat-text" style="margin-top: 6px;">${actualText}</div>
                 
                 <div class="chat-actions">
                     <button class="chat-action-btn" onclick="likeLiveComment(this)">
@@ -703,7 +749,7 @@ function deleteMessage(chatId) {
 }
 
 socket.on('receive_chat_realtime', (data) => {
-    appendChatMessageToDOM(data.user, data.text, data.chatId);
+    appendChatMessageToDOM(data.user, data.text, data.chatId, false, false, data.createdAt);
 
     if (data.user !== activeUser) {
         spawnDanmakuText(`${data.user}: ${data.text}`, '#fcd34d');
@@ -738,13 +784,13 @@ async function saveAndDisplayMessage(user, text) {
 
         if (data.success) {
             // BỔ SUNG: Hiển thị tin nhắn ngay lập tức cho chính người vừa gửi
-            appendChatMessageToDOM(user, text, data.chat._id);
-
+            appendChatMessageToDOM(user, text, data.chat._id, false, false, data.chat.createdAt);
             socket.emit('send_chat_realtime', {
                 videoId: videoId,
                 user: user,
                 text: text,
-                chatId: data.chat._id
+                chatId: data.chat._id,
+                createdAt: data.chat.createdAt // Thêm thuộc tính này gửi đi cho Realtime
             });
         }
     } catch (error) {
@@ -1289,3 +1335,69 @@ window.createCinemaRoom = function () {
         toggleCinemaRoom();
     }
 };
+// =====================================================================
+// BỘ CÔNG CỤ XỬ LÝ THỜI GIAN BÌNH LUẬN (CHUẨN FACEBOOK / YOUTUBE)
+// =====================================================================
+
+function getFullTooltipTime(dateObj) {
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    const dayName = days[dateObj.getDay()];
+    const d = dateObj.getDate().toString().padStart(2, '0');
+    const m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const y = dateObj.getFullYear();
+    const hh = dateObj.getHours().toString().padStart(2, '0');
+    const mm = dateObj.getMinutes().toString().padStart(2, '0');
+    const ss = dateObj.getSeconds().toString().padStart(2, '0');
+    
+    // Quy tắc 4: Khi hover chuột -> "Thứ Hai, ngày 16 tháng 06 năm 2026 lúc 20:15:32"
+    return `${dayName}, ngày ${d} tháng ${m} năm ${y} lúc ${hh}:${mm}:${ss}`;
+}
+
+function formatCommentTimeBadge(dateObj) {
+    const now = new Date();
+    const diffMs = now.getTime() - dateObj.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    const hh = dateObj.getHours().toString().padStart(2, '0');
+    const mm = dateObj.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+
+    if (diffMs >= 0 && diffMins < 1) return "Vừa xong";
+    if (diffMs >= 0 && diffMins < 60) return `${diffMins} phút trước`;
+    
+    // Lấy mốc thời gian đầu ngày (00:00:00) để tính khoảng cách ngày chính xác
+    const nowZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateZero = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    const diffDays = Math.floor((nowZero - dateZero) / (1000 * 60 * 60 * 24));
+
+    // Dưới 24 giờ (cùng ngày)
+    if (diffDays === 0) return `${diffHours} giờ trước`;
+
+    // Hôm qua
+    if (diffDays === 1) return `Hôm qua lúc ${timeStr}`;
+
+    // Trong vòng 7 ngày
+    if (diffDays > 1 && diffDays < 7) {
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        return `${days[dateObj.getDay()]} lúc ${timeStr}`;
+    }
+
+    const d = dateObj.getDate().toString().padStart(2, '0');
+    const m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const y = dateObj.getFullYear();
+
+    // Trong cùng năm
+    if (y === now.getFullYear()) return `${d}/${m} lúc ${timeStr}`;
+
+    // Khác năm
+    return `${d}/${m}/${y} lúc ${timeStr}`;
+}
+
+// VÒNG LẶP TỰ ĐỘNG CẬP NHẬT THỜI GIAN (LIVE UPDATE) MỖI 60 GIÂY
+setInterval(() => {
+    document.querySelectorAll('.live-comment-time').forEach(el => {
+        const msgTime = new Date(el.getAttribute('data-time'));
+        el.innerText = formatCommentTimeBadge(msgTime);
+    });
+}, 60000);

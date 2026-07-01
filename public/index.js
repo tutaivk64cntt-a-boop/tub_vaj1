@@ -433,8 +433,9 @@ async function loadContacts() {
     } catch (e) { }
 }
 
-// Thêm biến này ra ngoài cùng (ngay trên hàm openChatWithUser)
+// Thêm 2 biến này ra ngoài cùng (ngay trên hàm openChatWithUser)
 let lastPrivateMessageTime = null;
+let lastPrivateMessageDateString = null; 
 
 async function openChatWithUser(username) {
     currentChatTarget = username;
@@ -446,19 +447,18 @@ async function openChatWithUser(username) {
     const historyBox = document.getElementById('privateChatHistory');
     historyBox.innerHTML = '<p style="text-align:center; color:gray;">Đang tải...</p>';
 
-    // QUAN TRỌNG: Reset lại thời gian khi chuyển sang nhắn với người khác
-    lastPrivateMessageTime = null;
+    // QUAN TRỌNG: Reset lại thời gian và ngày khi chuyển sang nhắn với người khác
+    lastPrivateMessageTime = null; 
+    lastPrivateMessageDateString = null;
 
     try {
         const res = await fetch(`/api/messages/${activeUser}/${username}`);
         const data = await res.json();
         if (data.success) {
             historyBox.innerHTML = '';
-
-            // SỬA: Truyền thêm biến thời gian (msg.createdAt) vào hàm hiển thị UI
+            
             data.messages.forEach(msg => appendPrivateMessageUI(msg.sender, msg.message, msg.createdAt));
 
-            // ĐÁNH DẤU LÀ ĐÃ ĐỌC TOÀN BỘ TIN NHẮN
             let receivedMsgs = data.messages.filter(m => m.sender === username).length;
             let localReadData = JSON.parse(localStorage.getItem('sv_read_counts_' + activeUser)) || {};
             localReadData[username] = receivedMsgs;
@@ -474,37 +474,129 @@ function appendPrivateMessageUI(sender, text, createdAt) {
     const isMine = (sender === activeUser);
     const bubbleClass = isMine ? 'msg-mine' : 'msg-theirs';
 
-    let timeHtml = '';
-    // Nếu chưa có thời gian (ví dụ tin nhắn mình vừa gửi tức thì), lấy giờ của máy tính
     const msgTime = createdAt ? new Date(createdAt) : new Date();
+    const dateOnlyStr = msgTime.toDateString(); 
 
-    // LOGIC NHÓM TIN NHẮN GIỐNG MESSENGER (30 PHÚT)
+    let htmlToAppend = '';
+
+    // 1. THANH PHÂN CÁCH NGÀY (Hiển thị: Hôm nay, Hôm qua, Thứ Hai...)
+    if (lastPrivateMessageDateString !== dateOnlyStr) {
+        const separatorText = formatMessageDateSeparator(msgTime);
+        htmlToAppend += `
+            <div style="display: flex; align-items: center; justify-content: center; margin: 30px 0 20px 0;">
+                <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+                <div style="padding: 0 15px; font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${separatorText}</div>
+                <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+            </div>
+        `;
+        lastPrivateMessageDateString = dateOnlyStr;
+        // Sang ngày mới bắt buộc in lại giờ cho tin nhắn đầu tiên
+        lastPrivateMessageTime = null; 
+    }
+
+    // 2. HIỂN THỊ GIỜ TRÊN TIN NHẮN (Nhóm 30 phút)
     if (!lastPrivateMessageTime) {
-        // Tin nhắn đầu tiên: Bắt buộc hiện giờ
-        timeHtml = generateTimeHtml(msgTime);
+        htmlToAppend += generateTimeHtml(msgTime);
         lastPrivateMessageTime = msgTime;
     } else {
-        // Lấy khoảng cách giữa tin nhắn này và tin trước đó (đơn vị: phút)
         const diffMs = msgTime.getTime() - lastPrivateMessageTime.getTime();
         const diffMins = diffMs / (1000 * 60);
-
         if (diffMins > 30) {
-            // Cách nhau hơn 30 phút: Hiện thời gian và tạo mốc tính toán mới
-            timeHtml = generateTimeHtml(msgTime);
+            htmlToAppend += generateTimeHtml(msgTime);
             lastPrivateMessageTime = msgTime;
         }
     }
 
-    historyBox.innerHTML += `${timeHtml}<div class="msg-bubble ${bubbleClass}">${text}</div>`;
+    // 3. NỘI DUNG TIN NHẮN
+    htmlToAppend += `<div class="msg-bubble ${bubbleClass}">${text}</div>`;
+    
+    historyBox.innerHTML += htmlToAppend;
     historyBox.scrollTop = historyBox.scrollHeight;
 }
 
-// Hàm phụ trợ giúp định dạng giờ (Ví dụ: 08:05, 14:30)
-function generateTimeHtml(dateObj) {
-    const hours = dateObj.getHours().toString().padStart(2, '0');
-    const minutes = dateObj.getMinutes().toString().padStart(2, '0');
-    return `<div style="text-align: center; font-size: 11px; color: #94a3b8; margin: 15px 0 5px 0; font-weight: bold;">${hours}:${minutes}</div>`;
+// =====================================================================
+// BỘ CÔNG CỤ XỬ LÝ THỜI GIAN NHẮN TIN (CHUẨN MESSENGER / ZALO)
+// =====================================================================
+
+function formatMessageDateSeparator(dateObj) {
+    const now = new Date();
+    const nowZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateZero = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    const diffDays = Math.floor((nowZero - dateZero) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Hôm nay";
+    if (diffDays === 1) return "Hôm qua";
+    
+    const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+    if (diffDays < 7) return days[dateObj.getDay()];
+
+    const d = dateObj.getDate();
+    const m = dateObj.getMonth() + 1;
+    const y = dateObj.getFullYear();
+
+    if (y === now.getFullYear()) return `${d} tháng ${m}`;
+    return `${d} tháng ${m} năm ${y}`;
 }
+
+function formatMessageTimeBadge(dateObj) {
+    const now = new Date();
+    const diffMs = now.getTime() - dateObj.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+
+    const hh = dateObj.getHours().toString().padStart(2, '0');
+    const mm = dateObj.getMinutes().toString().padStart(2, '0');
+    const timeStr = `${hh}:${mm}`;
+
+    // Quy tắc 7: Tin nhắn mới gửi (Vừa xong, phút trước)
+    if (diffMs >= 0 && diffMs < 60000) return "Vừa xong";
+    if (diffMs >= 0 && diffMins < 60) return `${diffMins} phút trước`;
+    
+    // Tính toán mốc ngày để xét các Quy tắc còn lại
+    const nowZero = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dateZero = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    const diffDays = Math.floor((nowZero - dateZero) / (1000 * 60 * 60 * 24));
+
+    // Quy tắc 1 & 7: Trong ngày hôm nay
+    if (diffDays === 0) {
+        if (diffHours >= 1 && diffHours < 2) return "1 giờ trước"; 
+        return timeStr; // Trả về 08:15
+    }
+
+    // Quy tắc 2: Hôm qua
+    if (diffDays === 1) return `Hôm qua ${timeStr}`;
+
+    // Quy tắc 3: Trong vòng 7 ngày
+    if (diffDays < 7) {
+        const days = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+        return `${days[dateObj.getDay()]} ${timeStr}`;
+    }
+
+    const d = dateObj.getDate().toString().padStart(2, '0');
+    const m = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+    const y = dateObj.getFullYear();
+
+    // Quy tắc 4: Cùng năm
+    if (y === now.getFullYear()) return `${d}/${m} ${timeStr}`;
+
+    // Quy tắc 5: Khác năm
+    return `${d}/${m}/${y} ${timeStr}`;
+}
+
+function generateTimeHtml(dateObj) {
+    const timeText = formatMessageTimeBadge(dateObj);
+    // Gắn class live-time-badge để Javascript tự động quét và cập nhật
+    return `<div class="live-time-badge" data-time="${dateObj.toISOString()}" style="text-align: center; font-size: 11px; color: #94a3b8; margin: 10px 0 5px 0; font-weight: 500;">${timeText}</div>`;
+}
+
+// Vòng lặp cập nhật thời gian thực (Mỗi 60 giây)
+// Tự động quét các chữ "Vừa xong" đổi thành "1 phút trước" mà không cần F5
+setInterval(() => {
+    document.querySelectorAll('.live-time-badge').forEach(el => {
+        const msgTime = new Date(el.getAttribute('data-time'));
+        el.innerText = formatMessageTimeBadge(msgTime);
+    });
+}, 60000);
 
 async function sendPrivateMessage(e) {
     e.preventDefault();
